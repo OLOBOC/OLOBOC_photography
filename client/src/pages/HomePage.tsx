@@ -31,7 +31,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const { showToast } = useCart();
 
   useEffect(() => {
-    api.getEvents().then((res) => setEvents(res.events)).catch(console.error);
+    api
+      .getEvents()
+      .then((res) => setEvents(res.events))
+      .catch(console.error);
   }, []);
 
   const handleBibSearch = (val: string) => {
@@ -77,50 +80,45 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
     showToast(msg);
   };
 
+  const heroCoverUrl = events[0]?.coverPhoto?.previewUrl || '/api/photos/preview/060b3ff7-3249-4dc5-bfe4-6857141726ed-preview.webp';
+
   return (
     <div>
-      {/* Hero Section */}
-      <section
-        style={{
-          position: 'relative',
-          height: '100svh',
-          minHeight: '600px',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'flex-end',
-          paddingBottom: '12vh'
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'radial-gradient(circle at 60% 40%, rgba(232, 67, 31, 0.15), transparent 60%), #08090B'
-          }}
-        />
+      {/* 1. Cinematic Hero Section */}
+      <section className="hero-wrapper">
+        <div className="hero-bg">
+          <img src={heroCoverUrl} alt="OLOBOC_ Motorsport Photography" />
+        </div>
+        <div className="hero-overlay" />
 
-        {/* Ambient Motorsport Lighting Overlay */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(180deg, rgba(8, 9, 11, 0.4), transparent 40%, #08090B 96%)',
-            pointerEvents: 'none'
-          }}
-        />
-
-        <div className="container" style={{ position: 'relative', zIndex: 2, width: '100%' }}>
-          <div className="font-mono" style={{ color: 'var(--ink)', marginBottom: '8px' }}>
-            Motorsport Photography · Platform by Nortcode
+        <div className="container" style={{ position: 'relative', zIndex: 3, width: '100%' }}>
+          {/* Motorsport HUD telemetry header */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              borderBottom: '1px solid rgba(243, 239, 234, 0.2)',
+              paddingBottom: '12px',
+              marginBottom: '20px'
+            }}
+            className="font-mono"
+          >
+            <span style={{ color: 'var(--ac)' }}>
+              ● REC // ARCHIVO MOTORSPORT // ASTURIAS
+            </span>
+            <span style={{ color: 'var(--ink)' }}>
+              F/2.8 · 1/1600S · ISO 400 · RAW 18MP
+            </span>
           </div>
 
           <h1
             className="font-display"
             style={{
-              fontSize: 'clamp(84px, 20vw, 300px)',
-              lineHeight: 0.82,
+              fontSize: 'clamp(84px, 21vw, 290px)',
               letterSpacing: '-0.01em',
-              mixBlendMode: 'difference'
+              mixBlendMode: 'difference',
+              textShadow: '0 8px 30px rgba(0,0,0,0.8)'
             }}
           >
             OLOBOC<i style={{ color: 'var(--ac)', fontStyle: 'normal' }}>_</i>
@@ -128,43 +126,61 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
           <p
             style={{
-              fontSize: 'clamp(18px, 2.5vw, 24px)',
-              maxWidth: '560px',
-              margin: '20px 0 28px',
-              color: 'var(--ink)'
+              fontSize: 'clamp(18px, 2.6vw, 26px)',
+              maxWidth: '640px',
+              margin: '18px 0 32px',
+              color: 'var(--ink)',
+              fontWeight: 500,
+              lineHeight: 1.3
             }}
           >
-            The moment. The machine. The motion. Galerías completas de rally, rallysprint, circuito y drift.
+            The moment. The machine. The motion. Galerías completas de rally, rallysprint, circuito y drift con entrega digital en alta resolución.
           </p>
 
-          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button onClick={() => onNavigate('archive')} className="btn btn-primary">
               ENTRAR A LAS GALERÍAS →
             </button>
             <a href="#discover" className="btn btn-outline">
-              BUSCAR POR DORSAL #
+              BUSCAR MI COCHE POR DORSAL #
+            </a>
+            <a
+              href="https://www.instagram.com/oloboc_/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline"
+              style={{ borderColor: 'transparent', color: 'var(--mut)' }}
+            >
+              @OLOBOC_ EN INSTAGRAM ↗
             </a>
           </div>
         </div>
       </section>
 
-      {/* Ticker Tape */}
+      {/* 2. Ticker Tape */}
       <div className="ticker-wrap">
         <div className="ticker-inner">
-          {'<span>RALLY</span><b>/</b><span>RALLYSPRINT</span><b>/</b><span>DRIFT</span><b>/</b><span>CIRCUITO</span><b>/</b><span>HISTÓRICOS</span><b>/</b>'.repeat(
-            6
+          {'<span>RALLY</span><b>/</b><span>RALLYSPRINT</span><b>/</b><span>DRIFT</span><b>/</b><span>CIRCUITO</span><b>/</b><span>HISTÓRICOS</span><b>/</b><span>VELOCIDAD</span><b>/</b>'.repeat(
+            5
           )}
         </div>
       </div>
 
-      {/* 01 - Latest Events */}
+      {/* 3. Latest Events (Asymmetrical Editorial Grid) */}
       <section className="section-pad">
-        <div className="font-mono">01 — Latest Events</div>
-        <h2 className="font-display" style={{ fontSize: 'clamp(48px, 8vw, 110px)', margin: '6px 0 34px' }}>
-          Últimas galerías
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '34px', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <div className="font-mono">01 — Latest Events</div>
+            <h2 className="font-display" style={{ fontSize: 'clamp(48px, 8vw, 110px)', margin: '4px 0 0' }}>
+              Últimas galerías
+            </h2>
+          </div>
+          <button onClick={() => onNavigate('archive')} className="btn btn-outline">
+            VER ARCHIVO COMPLETO ({events.reduce((acc, e) => acc + e.photoCount, 0)} FOTOS) →
+          </button>
+        </div>
 
-        <div className="events-grid">
+        <div className="editorial-grid">
           {events.slice(0, 6).map((e, idx) => (
             <a
               key={e.id}
@@ -188,50 +204,68 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
                 </span>
                 <h3>{e.name}</h3>
                 <span className="font-mono">
-                  {e.location} · {e.photoCount} fotografías
+                  {e.location} · {e.photoCount} fotografías disponibles
                 </span>
               </div>
             </a>
           ))}
         </div>
-
-        <div style={{ marginTop: '30px' }}>
-          <button onClick={() => onNavigate('archive')} className="btn">
-            VER TODO EL ARCHIVO →
-          </button>
-        </div>
       </section>
 
-      {/* 02 - Car / Bib Recognition Finder */}
+      {/* 4. Car & Bib Recognition Finder */}
       <section id="discover" className="section-pad" style={{ background: 'var(--bg2)', borderBlock: '1px solid var(--line)' }}>
-        <div className="font-mono">02 — Photo Discovery</div>
+        <div className="font-mono" style={{ color: 'var(--ac)' }}>02 — Reconocimiento Automático</div>
         <h2 className="font-display" style={{ fontSize: 'clamp(48px, 8vw, 110px)', margin: '6px 0 16px' }}>
-          Encuentra tu coche
+          Encuentra tu dorsal
         </h2>
-        <p style={{ maxWidth: '620px', marginBottom: '24px', color: 'var(--mut)', fontSize: '15px' }}>
-          Búsqueda de fotografías por número de dorsal analizado mediante nuestro pipeline de reconocimiento automático. Introduce tu número de carrera.
+        <p style={{ maxWidth: '640px', marginBottom: '24px', color: 'var(--mut)', fontSize: '16px' }}>
+          ¿Has participado en carrera? Localiza al instante todas las fotografías de tu vehículo analizadas automáticamente mediante nuestro pipeline OCR.
         </p>
 
-        <div style={{ maxWidth: '320px', marginBottom: '30px' }}>
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="Dorsal (ej. 7, 12, 23)"
-            value={bibQuery}
-            onChange={(e) => handleBibSearch(e.target.value)}
-          />
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '28px' }}>
+          <div style={{ maxWidth: '320px', flex: '1 1 240px' }}>
+            <input
+              type="number"
+              inputMode="numeric"
+              placeholder="Escribe tu dorsal (ej. 7, 12, 23)"
+              value={bibQuery}
+              onChange={(e) => handleBibSearch(e.target.value)}
+              style={{ fontSize: '18px', fontWeight: 600, padding: '16px 20px' }}
+            />
+          </div>
+
+          {/* Quick Filter Chips */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span className="font-mono" style={{ fontSize: '10px' }}>Dorsales destacados:</span>
+            {['7', '12', '23', '44', '5'].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => handleBibSearch(d)}
+                className={`chip ${bibQuery === d ? 'active' : ''}`}
+                style={{ padding: '6px 14px' }}
+              >
+                #{d}
+              </button>
+            ))}
+          </div>
         </div>
 
         {isSearchingBib && (
           <p className="font-mono" style={{ color: 'var(--ac)', marginBottom: '16px' }}>
-            Buscando dorsales en la base de datos…
+            Escaneando archivo por dorsal #{bibQuery}…
           </p>
         )}
 
         {bibQuery && !isSearchingBib && bibResults.length === 0 && (
-          <p className="font-mono" style={{ color: 'var(--mut)' }}>
-            No se han encontrado fotografías publicadas con el dorsal #{bibQuery}.
-          </p>
+          <div style={{ padding: '30px', background: 'var(--bg)', border: '1px solid var(--line)', maxWidth: '600px' }}>
+            <p className="font-mono" style={{ color: 'var(--mut)' }}>
+              No se han encontrado fotografías publicadas con el dorsal #{bibQuery}.
+            </p>
+            <p style={{ fontSize: '13px', marginTop: '8px' }}>
+              Si competiste en este evento y tu dorsal no aparece etiquetado, puedes solicitarlo directamente a través del formulario de contacto.
+            </p>
+          </div>
         )}
 
         {bibResults.length > 0 && (
@@ -273,83 +307,73 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         )}
       </section>
 
-      {/* 03 - Behind the Lens */}
+      {/* 5. Behind the Lens (Photographer Statement) */}
       <section id="about" className="section-pad">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '50px', alignItems: 'center' }}>
-          <div style={{ aspectRatio: '4/5', background: 'var(--bg2)', border: '1px solid var(--line)', overflow: 'hidden' }}>
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                background: 'linear-gradient(135deg, #16181d, #08090b)',
-                display: 'grid',
-                placeItems: 'center',
-                padding: '30px',
-                textAlign: 'center'
-              }}
-            >
-              <div>
-                <span className="font-display" style={{ fontSize: '72px', color: 'var(--ac)' }}>
-                  OLOBOC_
-                </span>
-                <p className="font-mono" style={{ marginTop: '10px' }}>
-                  Motorsport Visual Storyteller
-                </p>
-              </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '50px', alignItems: 'center' }}>
+          <div style={{ aspectRatio: '4/5', background: 'var(--bg2)', border: '1px solid var(--line)', overflow: 'hidden', position: 'relative' }}>
+            <img
+              src={events[1]?.coverPhoto?.previewUrl || heroCoverUrl}
+              alt="Detrás del objetivo OLOBOC_"
+              style={{ filter: 'grayscale(25%) contrast(1.1)' }}
+            />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 50%, rgba(8,9,11,0.9))' }} />
+            <div style={{ position: 'absolute', bottom: '24px', left: '24px' }}>
+              <span className="font-mono" style={{ color: 'var(--ac)' }}>OLOBOC_ PHOTOGRAPHY</span>
+              <p className="font-display" style={{ fontSize: '38px', marginTop: '4px' }}>Asturias Motorsport</p>
             </div>
           </div>
 
           <div>
-            <div className="font-mono">03 — Fotógrafo</div>
+            <div className="font-mono">03 — Detrás del Objetivo</div>
             <h2 className="font-display" style={{ fontSize: 'clamp(48px, 7vw, 90px)', margin: '6px 0 20px' }}>
-              Detrás del objetivo
+              El instante. El asfalto. La pasión.
             </h2>
             <p style={{ color: 'var(--ink)', fontSize: '18px', lineHeight: 1.6, marginBottom: '16px' }}>
-              Pasión por el rally, las subidas de montaña, el drift y la cultura del motor. Capturando el instante exacto en que la máquina, la velocidad y la concentración del piloto se funden con el paisaje.
+              No disparo fotos: persigo la décima de segundo en que el piloto clava el vértice de la curva, el escape escupe fuego y la grava impacta en el chasis. Una crónica visual cinematográfica del automovilismo deportivo real.
             </p>
-            <p className="font-mono" style={{ marginBottom: '28px', color: 'var(--mut)' }}>
-              Asturias · Cobertura nacional · Eventos oficiales y privados
+            <p className="font-mono" style={{ marginBottom: '30px', color: 'var(--mut)' }}>
+              Rally · Rallysprint · Drift · Montaña · Coberturas oficiales para equipos y organizadores
             </p>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
               <a href="https://www.instagram.com/oloboc_/" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
-                INSTAGRAM @OLOBOC_
+                INSTAGRAM @OLOBOC_ ↗
               </a>
               <a href="https://www.tiktok.com/@oloboc_" target="_blank" rel="noopener noreferrer" className="btn btn-outline">
-                TIKTOK @OLOBOC_
+                TIKTOK @OLOBOC_ ↗
               </a>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 04 - Share your moment */}
+      {/* 6. Share & Tag Community */}
       <section className="section-pad" style={{ background: 'var(--bg3)', borderBlock: '1px solid var(--line)' }}>
-        <div className="font-mono" style={{ color: 'var(--ac)' }}>04 — Share Your Moment</div>
+        <div className="font-mono" style={{ color: 'var(--ac)' }}>04 — Share Your Shot</div>
         <h2 className="font-display" style={{ fontSize: 'clamp(52px, 9vw, 130px)', margin: '6px 0 16px' }}>
           Share your shot. Tag @oloboc_.
         </h2>
-        <p style={{ maxWidth: '640px', fontSize: '18px', marginBottom: '24px' }}>
-          Si encontraste tu momento en carrera y lo compartes en tus redes sociales, menciona y etiqueta <strong>@oloboc_</strong> para apoyar la continuidad de las coberturas.
+        <p style={{ maxWidth: '680px', fontSize: '18px', marginBottom: '28px', lineHeight: 1.5 }}>
+          Si encontraste tu momento en la carrera y lo compartes en tus redes sociales, menciona y etiqueta <strong>@oloboc_</strong> para apoyar la continuidad de las coberturas en los tramos.
         </p>
 
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
           <button onClick={() => copyToClipboard('@oloboc_', '@oloboc_ copiado al portapapeles')} className="btn btn-primary">
             COPIAR @OLOBOC_
           </button>
-          <a href="https://www.instagram.com/oloboc_/" target="_blank" rel="noopener noreferrer" className="btn">
-            VER EN INSTAGRAM
+          <a href="https://www.instagram.com/oloboc_/" target="_blank" rel="noopener noreferrer" className="btn btn-outline">
+            ABRIR PERFIL EN INSTAGRAM ↗
           </a>
         </div>
       </section>
 
-      {/* 05 - Contact Form */}
+      {/* 7. Contact Form */}
       <section id="contact" className="section-pad">
-        <div className="font-mono">05 — Contacto</div>
+        <div className="font-mono">05 — Contacto Directo</div>
         <h2 className="font-display" style={{ fontSize: 'clamp(48px, 8vw, 100px)', margin: '6px 0 24px' }}>
           Hablemos
         </h2>
 
-        <form onSubmit={handleContactSubmit} style={{ maxWidth: '640px', display: 'grid', gap: '14px' }}>
+        <form onSubmit={handleContactSubmit} style={{ maxWidth: '660px', display: 'grid', gap: '16px' }}>
           <input
             placeholder="Tu nombre completo"
             value={contactForm.n}
@@ -371,10 +395,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             required
           >
             <option value="">Selecciona el motivo de contacto…</option>
-            <option value="Colaboración">Colaboración</option>
-            <option value="Evento / Organizador">Evento / Organizador</option>
-            <option value="Equipo / Piloto">Equipo / Piloto</option>
-            <option value="Solicitud fotográfica">Solicitud fotográfica</option>
+            <option value="Colaboración">Colaboración / Sesión privada</option>
+            <option value="Evento / Organizador">Evento / Organizador de competición</option>
+            <option value="Equipo / Piloto">Equipo de competición / Piloto</option>
+            <option value="Solicitud fotográfica">Solicitud fotográfica personalizada</option>
             <option value="Derechos de imagen / retirada">Derechos de imagen / Solicitud de retirada</option>
           </select>
 
@@ -396,7 +420,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             onChange={(e) => setContactForm({ ...contactForm, web: e.target.value })}
           />
 
-          <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '13px', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', fontSize: '13px', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={contactForm.ok}
@@ -432,9 +456,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             type="submit"
             disabled={contactStatus.loading}
             className="btn btn-primary"
-            style={{ justifySelf: 'start', minWidth: '160px' }}
+            style={{ justifySelf: 'start', minWidth: '180px' }}
           >
-            {contactStatus.loading ? 'ENVIANDO…' : 'ENVIAR MENSAJE'}
+            {contactStatus.loading ? 'ENVIANDO…' : 'ENVIAR MENSAJE →'}
           </button>
         </form>
       </section>

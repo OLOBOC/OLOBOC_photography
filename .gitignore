@@ -44,3 +44,7 @@ Thumbs.db
 
 # OCR Language Data
 *.traineddata
+
+# Local RAW / source photography exports (not to be versioned in git)
+img/
+

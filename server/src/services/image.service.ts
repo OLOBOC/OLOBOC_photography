@@ -85,12 +85,27 @@ export class ImageService {
     await sharp(watermarkedBuffer).toFile(watermarkedPath);
 
     // 4. Preview variant (max 1600px width/height, WebP optimized)
-    const previewWidth = Math.min(width, 1600);
-    const previewWatermark = this.generateWatermarkSvg(previewWidth, Math.round((height / width) * previewWidth), watermarkText || config.watermark.text);
+    let previewW = width;
+    let previewH = height;
+    if (width > 1600 || height > 1600) {
+      if (width >= height) {
+        previewW = 1600;
+        previewH = Math.round((height / width) * 1600);
+      } else {
+        previewH = 1600;
+        previewW = Math.round((width / height) * 1600);
+      }
+    }
+
+    const previewWatermark = this.generateWatermarkSvg(
+      previewW,
+      previewH,
+      watermarkText || config.watermark.text
+    );
 
     const previewPath = storageService.getPreviewPath(previewKey);
     await sharp(fileBuffer)
-      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .resize(previewW, previewH)
       .composite([{ input: previewWatermark, blend: 'over' }])
       .webp({ quality: 82 })
       .toFile(previewPath);
