@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for production
+  postgres:
+    image: postgres:16-alpine
+    container_name: oloboc-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: oloboc_prod
+      POSTGRES_USER: oloboc_user
+      POSTGRES_PASSWORD: oloboc_secure_password_change_in_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oloboc_user -d oloboc_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for background queue & workers (BullMQ)
+  redis:
+    image: redis:7-alpine
+    container_name: oloboc-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Node.js Full Stack Server & OCR Worker
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    container_name: oloboc-app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://oloboc_user:oloboc_secure_password_change_in_prod@postgres:5432/oloboc_prod?schema=public"
+      JWT_SECRET: "replace_with_a_cryptographically_secure_random_64_char_key_in_production"
+      CLIENT_URL: "http://localhost"
+      STORAGE_DRIVER: "local"
+      UPLOAD_DIR: "/app/storage"
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-sk_test_placeholder}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}"
+    volumes:
+      - oloboc_storage:/app/storage
+    ports:
+      - "4000:4000"
+
+volumes:
+  postgres_data:
+  redis_data:
+  oloboc_storage:

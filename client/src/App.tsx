@@ -1,0 +1,90 @@
+import React, { useState, useEffect } from 'react';
+import { CartProvider } from './context/CartContext';
+import { Header } from './components/Header';
+import { Footer } from './components/Footer';
+import { CartDrawer } from './components/CartDrawer';
+import { CookieBanner } from './components/CookieBanner';
+
+import { HomePage } from './pages/HomePage';
+import { ArchivePage } from './pages/ArchivePage';
+import { EventDetailPage } from './pages/EventDetailPage';
+import { OrderSuccessPage } from './pages/OrderSuccessPage';
+import { OrderLookupPage } from './pages/OrderLookupPage';
+import { LegalPage } from './pages/LegalPage';
+import { AdminPage } from './pages/AdminPage';
+
+export const App: React.FC = () => {
+  const [currentRoute, setCurrentRoute] = useState<string>(() => {
+    return window.location.hash.slice(1) || 'home';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1) || 'home';
+      setCurrentRoute(hash);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const navigateTo = (route: string) => {
+    window.location.hash = `#${route}`;
+  };
+
+  const renderCurrentPage = () => {
+    // 1. Event detail routes: #event-<slug>
+    if (currentRoute.startsWith('event-')) {
+      const slug = currentRoute.replace('event-', '');
+      return <EventDetailPage slug={slug} onNavigate={navigateTo} />;
+    }
+
+    // 2. Order success route: #order-success?token=...
+    if (currentRoute.startsWith('order-success')) {
+      const urlParams = new URLSearchParams(currentRoute.split('?')[1] || window.location.search);
+      const token = urlParams.get('token') || '';
+      return <OrderSuccessPage token={token} onNavigate={navigateTo} />;
+    }
+
+    // 3. Legal pages
+    if (['aviso-legal', 'privacidad', 'cookies', 'licencia-imagen'].includes(currentRoute)) {
+      return (
+        <LegalPage
+          page={currentRoute as 'aviso-legal' | 'privacidad' | 'cookies' | 'licencia-imagen'}
+          onNavigate={navigateTo}
+        />
+      );
+    }
+
+    // 4. Other pages
+    switch (currentRoute) {
+      case 'archive':
+        return <ArchivePage onNavigate={navigateTo} />;
+      case 'order-lookup':
+        return <OrderLookupPage onNavigate={navigateTo} />;
+      case 'admin':
+        return <AdminPage onNavigate={navigateTo} />;
+      case 'home':
+      default:
+        return <HomePage onNavigate={navigateTo} />;
+    }
+  };
+
+  const isAdminRoute = currentRoute === 'admin';
+
+  return (
+    <CartProvider>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {!isAdminRoute && <Header currentRoute={currentRoute} onNavigate={navigateTo} />}
+
+        <main style={{ flex: 1 }}>{renderCurrentPage()}</main>
+
+        {!isAdminRoute && <Footer onNavigate={navigateTo} />}
+
+        <CartDrawer />
+        <CookieBanner />
+      </div>
+    </CartProvider>
+  );
+};

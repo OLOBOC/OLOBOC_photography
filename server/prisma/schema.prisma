@@ -1,0 +1,212 @@
+// Prisma schema for OLOBOC_ Motorsport Photography Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  role         String     @default("ADMIN") // SUPERADMIN, ADMIN
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  sessions     Session[]
+  auditLogs    AuditLog[]
+}
+
+model Session {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  adminUserId String
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  location    String
+  date        DateTime
+  season      Int
+  category    String   // Rally, Rallysprint, Drift, Circuito, Otros
+  description String
+  coverPhotoId String?
+  status      String   @default("DRAFT") // DRAFT, PUBLISHED
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  photos      Photo[]
+
+  @@index([season, category])
+  @@index([status])
+}
+
+model Photo {
+  id                    String         @id @default(uuid())
+  eventId               String
+  event                 Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  originalFilename      String
+  storageKeyOriginal    String
+  storageKeyWatermarked String
+  storageKeyPreview     String
+  storageKeyThumbnail   String
+  mimeType              String         @default("image/jpeg")
+  sizeBytes             Int            @default(0)
+  width                 Int            @default(0)
+  height                Int            @default(0)
+  isCover               Boolean        @default(false)
+  isPublished           Boolean        @default(true)
+  isCommercial          Boolean        @default(true)
+  downloadCount         Int            @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  bibDetections         BibDetection[]
+  orderItems            OrderItem[]
+  takedownRequests      TakedownRequest[]
+
+  @@index([eventId])
+  @@index([isPublished])
+}
+
+model BibDetection {
+  id          String   @id @default(uuid())
+  photoId     String
+  photo       Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  bibNumber   String
+  confidence  Float    @default(1.0)
+  bboxX       Int?
+  bboxY       Int?
+  bboxW       Int?
+  bboxH       Int?
+  status      String   @default("DETECTED") // DETECTED, CONFIRMED, REJECTED, MANUAL
+  detectedBy  String   @default("TESSERACT_OCR") // TESSERACT_OCR, YOLO_PADDLEOCR, MANUAL
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([photoId])
+  @@index([bibNumber])
+  @@index([status])
+}
+
+model Pack {
+  id          String   @id @default(uuid())
+  name        String
+  photoCount  Int
+  priceCents  Int
+  isFeatured  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model Order {
+  id                    String      @id @default(uuid())
+  orderNumber           String      @unique
+  customerEmail         String
+  totalAmountCents      Int
+  status                String      @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  stripeSessionId       String?     @unique
+  stripePaymentIntentId String?
+  downloadToken         String      @unique
+  downloadExpiresAt     DateTime
+  downloadCount         Int         @default(0)
+  maxDownloads          Int         @default(10)
+  appliedPackName       String?
+  tipAmountCents        Int         @default(0)
+  ipAddress             String?
+  userAgent             String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  items                 OrderItem[]
+
+  @@index([customerEmail])
+  @@index([downloadToken])
+  @@index([status])
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  photoId    String
+  photo      Photo    @relation(fields: [photoId], references: [id], onDelete: Restrict)
+  priceCents Int
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@index([photoId])
+}
+
+model PaymentWebhookEvent {
+  id            String   @id @default(uuid())
+  stripeEventId String   @unique
+  eventType     String
+  payload       String
+  processedAt   DateTime @default(now())
+}
+
+model ContactMessage {
+  id              String            @id @default(uuid())
+  name            String
+  email           String
+  motive          String
+  message         String
+  status          String            @default("NEW") // NEW, IN_PROGRESS, RESOLVED
+  ipAddress       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  takedownRequests TakedownRequest[]
+
+  @@index([motive])
+  @@index([status])
+}
+
+model TakedownRequest {
+  id               String          @id @default(uuid())
+  contactMessageId String?
+  contactMessage   ContactMessage? @relation(fields: [contactMessageId], references: [id], onDelete: SetNull)
+  photoId          String
+  photo            Photo           @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  requesterName    String
+  requesterEmail   String
+  reason           String
+  status           String          @default("PENDING") // PENDING, ACCEPTED_HIDDEN, REJECTED
+  adminNotes       String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([photoId])
+  @@index([status])
+}
+
+model AuditLog {
+  id          String     @id @default(uuid())
+  adminUserId String?
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String
+  entityId    String?
+  details     String?
+  ipAddress   String?
+  createdAt   DateTime   @default(now())
+
+  @@index([action])
+  @@index([entityType])
+}

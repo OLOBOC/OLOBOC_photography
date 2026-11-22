@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Databases
+*.db
+*.db-journal
+dev.db
+dev.db-journal
+
+# Local storage files (keep directories)
+server/storage/originals/*
+!server/storage/originals/.gitkeep
+server/storage/watermarked/*
+!server/storage/watermarked/.gitkeep
+server/storage/previews/*
+!server/storage/previews/.gitkeep
+server/storage/thumbnails/*
+!server/storage/thumbnails/.gitkeep
+
+# Build Outputs
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# OCR Language Data
+*.traineddata

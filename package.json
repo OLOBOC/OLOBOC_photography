@@ -1,0 +1,15 @@
+{
+  "name": "oloboc-photography-platform",
+  "version": "1.0.0",
+  "description": "OLOBOC_ Motorsport Photography Full Stack Platform - Developed by Nortcode",
+  "author": "Nortcode (https://www.nortcode.es)",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "cd server && npm run start",
+    "dev": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "test": "cd server && npx tsx test/test-runner.ts",
+    "db:seed": "cd server && npx tsx src/db/seed.ts && npx tsx src/db/seed-photos.ts"
+  }
+}
