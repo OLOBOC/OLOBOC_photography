@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../db/prisma.js';
 import { requireAdmin, AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { ocrQueueService } from '../services/queue.service.js';
 
 const router = Router();
 
@@ -143,36 +144,119 @@ router.get('/events/:id/photos', async (req: AuthenticatedRequest, res: Response
   });
 });
 
-// Admin: Bib Review Queue
+// Admin: Bib Review Queue with Status & Event Filtering
 router.get('/bib-review', async (req: AuthenticatedRequest, res: Response) => {
-  const pendingDetections = await prisma.bibDetection.findMany({
-    where: { status: 'DETECTED' },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      photo: {
-        include: {
-          event: { select: { id: true, name: true, slug: true } }
+  const { status = 'DETECTED', eventId, page = '1', limit = '60' } = req.query;
+
+  const where: any = {};
+  if (status && typeof status === 'string' && status !== 'ALL') {
+    where.status = status;
+  }
+  if (eventId && typeof eventId === 'string' && eventId !== 'all') {
+    where.photo = { eventId };
+  }
+
+  const take = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 60));
+  const skip = (Math.max(1, parseInt(String(page), 10) || 1) - 1) * take;
+
+  const [pendingCount, totalDetections, detections] = await Promise.all([
+    prisma.bibDetection.count({ where: { status: 'DETECTED' } }),
+    prisma.bibDetection.count({ where }),
+    prisma.bibDetection.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+      include: {
+        photo: {
+          include: {
+            event: { select: { id: true, name: true, slug: true } }
+          }
         }
       }
-    },
-    take: 50
-  });
+    })
+  ]);
 
   res.json({
-    pendingCount: pendingDetections.length,
-    detections: pendingDetections.map((d) => ({
+    pendingCount,
+    totalCount: totalDetections,
+    page: parseInt(String(page), 10) || 1,
+    limit: take,
+    detections: detections.map((d) => ({
       id: d.id,
       bibNumber: d.bibNumber,
       confidence: d.confidence,
       bbox: { x: d.bboxX, y: d.bboxY, w: d.bboxW, h: d.bboxH },
+      cropBase64: d.cropBase64,
       status: d.status,
       detectedBy: d.detectedBy,
       photoId: d.photo.id,
+      photoFilename: d.photo.originalFilename,
       previewUrl: `/api/photos/preview/${d.photo.storageKeyPreview}`,
       thumbnailUrl: `/api/photos/thumb/${d.photo.storageKeyThumbnail}`,
+      eventId: d.photo.event.id,
       eventName: d.photo.event.name
     }))
   });
+});
+
+// Admin: Batch confirm multiple detections
+router.post('/bib-review/batch-confirm', async (req: AuthenticatedRequest, res: Response) => {
+  const { detectionIds } = req.body;
+  if (!Array.isArray(detectionIds) || detectionIds.length === 0) {
+    return res.status(400).json({ error: 'Lista de IDs no proporcionada' });
+  }
+
+  const result = await prisma.bibDetection.updateMany({
+    where: { id: { in: detectionIds } },
+    data: { status: 'CONFIRMED' }
+  });
+
+  res.json({ success: true, count: result.count });
+});
+
+// Admin: Batch reject multiple detections (e.g. false positives/sponsor stickers)
+router.post('/bib-review/batch-reject', async (req: AuthenticatedRequest, res: Response) => {
+  const { detectionIds } = req.body;
+  if (!Array.isArray(detectionIds) || detectionIds.length === 0) {
+    return res.status(400).json({ error: 'Lista de IDs no proporcionada' });
+  }
+
+  const result = await prisma.bibDetection.updateMany({
+    where: { id: { in: detectionIds } },
+    data: { status: 'REJECTED' }
+  });
+
+  res.json({ success: true, count: result.count });
+});
+
+// Admin: Reprocess Vision AI on all or pending photos of an event
+router.post('/events/:id/reprocess-ocr', async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { forceAll = false } = req.body;
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) return res.status(404).json({ error: 'Evento no encontrado' });
+
+  const { queuedCount } = await ocrQueueService.enqueueEvent(id, forceAll);
+  res.json({ success: true, message: `${queuedCount} fotos encoladas para procesamiento de visión artificial`, queuedCount });
+});
+
+// Admin: Check real-time progress of OCR processing for an event
+router.get('/events/:id/ocr-progress', async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const progress = await ocrQueueService.getEventProgress(id);
+  res.json(progress);
+});
+
+// Admin: Reprocess Vision AI for a single photo
+router.post('/photos/:id/reprocess-ocr', async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const photo = await prisma.photo.findUnique({ where: { id } });
+  if (!photo) return res.status(404).json({ error: 'Foto no encontrada' });
+
+  await ocrQueueService.enqueue(photo.id, photo.eventId);
+  res.json({ success: true, message: 'Foto encolada para reconocimiento' });
 });
 
 // Admin: Orders list

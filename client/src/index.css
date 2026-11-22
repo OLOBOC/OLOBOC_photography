@@ -1050,3 +1050,142 @@ input:focus, select:focus, textarea:focus {
   0% { transform: translateX(-60px); }
   100% { transform: translateX(180px); }
 }
+
+/* ─── Skeleton Loading Shimmer ─── */
+.loading-shimmer {
+  background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 50%, var(--bg2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ─── Commercial Packs Pricing Banner ─── */
+.packs-banner {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.packs-banner-title {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--mut);
+}
+
+.packs-chips-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pack-chip {
+  flex: 1 1 140px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: all 0.25s ease;
+}
+
+.pack-chip:hover {
+  border-color: rgba(232, 67, 31, 0.4);
+}
+
+.pack-chip.active {
+  border-color: var(--ac);
+  background: rgba(232, 67, 31, 0.08);
+  box-shadow: 0 4px 16px var(--ac-glow);
+}
+
+.pack-name {
+  font-size: 10px;
+  color: var(--mut);
+  letter-spacing: 0.12em;
+}
+
+.pack-chip.active .pack-name {
+  color: var(--ac);
+  font-weight: 700;
+}
+
+.pack-price {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.pack-desc {
+  font-size: 9px;
+  color: var(--mut);
+}
+
+/* ─── Gallery Toolbar ─── */
+.gallery-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  padding: 14px 20px;
+  margin-bottom: 24px;
+}
+
+/* ─── Floating Selection Bottom Bar ─── */
+.floating-selection-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 95;
+  background: rgba(8, 9, 11, 0.94);
+  border-top: 1px solid var(--ac);
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.8);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* ─── Accessibility & Reduced Motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Mobile Touch Targets (WCAG >= 44px) ─── */
+@media (max-width: 640px) {
+  .photo-card-action {
+    top: 8px;
+    right: 8px;
+  }
+  .photo-add-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+  .btn {
+    min-height: 44px;
+  }
+  .gallery-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

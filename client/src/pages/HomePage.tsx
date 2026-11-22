@@ -11,6 +11,7 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [bibQuery, setBibQuery] = useState('');
+  const [selectedBibEvent, setSelectedBibEvent] = useState('all');
   const [bibResults, setBibResults] = useState<BibSearchResult[]>([]);
   const [isSearchingBib, setIsSearchingBib] = useState(false);
   const [viewerPhoto, setViewerPhoto] = useState<{ photos: any[]; index: number; eventName: string } | null>(null);
@@ -37,7 +38,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       .catch(console.error);
   }, []);
 
-  const handleBibSearch = (val: string) => {
+  const handleBibSearch = (val: string, eventId: string = selectedBibEvent) => {
     setBibQuery(val);
     const clean = val.trim();
     if (!clean) {
@@ -47,7 +48,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
     setIsSearchingBib(true);
     api
-      .searchBib(clean)
+      .searchBib(clean, eventId !== 'all' ? eventId : undefined)
       .then((res) => setBibResults(res.results))
       .catch((err) => console.error('Bib search error:', err))
       .finally(() => setIsSearchingBib(false));
@@ -223,15 +224,31 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         </p>
 
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '28px' }}>
-          <div style={{ maxWidth: '320px', flex: '1 1 240px' }}>
+          <div style={{ maxWidth: '280px', flex: '1 1 200px' }}>
             <input
               type="number"
               inputMode="numeric"
-              placeholder="Escribe tu dorsal (ej. 7, 12, 23)"
+              placeholder="Nº dorsal (ej. 7, 12, 23)"
               value={bibQuery}
               onChange={(e) => handleBibSearch(e.target.value)}
-              style={{ fontSize: '18px', fontWeight: 600, padding: '16px 20px' }}
+              style={{ fontSize: '18px', fontWeight: 600, padding: '14px 18px' }}
             />
+          </div>
+
+          <div style={{ maxWidth: '260px', flex: '1 1 200px' }}>
+            <select
+              value={selectedBibEvent}
+              onChange={(e) => {
+                setSelectedBibEvent(e.target.value);
+                if (bibQuery) handleBibSearch(bibQuery, e.target.value);
+              }}
+              style={{ padding: '15px 16px', fontSize: '13px' }}
+            >
+              <option value="all">Todos los eventos</option>
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>{ev.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Quick Filter Chips */}

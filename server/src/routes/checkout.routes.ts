@@ -9,6 +9,25 @@ import { config } from '../config.js';
 
 const router = Router();
 
+// Public: Get active commercial packs
+router.get('/packs', async (req: Request, res: Response) => {
+  const packs = await prisma.pack.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: 'asc' }
+  });
+  const basePrice = await pricingService.getBaseUnitPriceCents();
+  res.json({
+    baseUnitPriceCents: basePrice,
+    packs: packs.map((p) => ({
+      id: p.id,
+      name: p.name,
+      photoCount: p.photoCount,
+      priceCents: p.priceCents,
+      isFeatured: p.isFeatured
+    }))
+  });
+});
+
 // Public: Get live price quote with pack optimization
 router.post('/quote', async (req: Request, res: Response, next) => {
   try {

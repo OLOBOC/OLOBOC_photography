@@ -49,6 +49,11 @@ export const api = {
   },
 
   // Checkout & Pricing
+  getPacks: () =>
+    req<{ baseUnitPriceCents: number; packs: { id: string; name: string; photoCount: number; priceCents: number; isFeatured: boolean }[] }>(
+      '/checkout/packs'
+    ),
+
   getQuote: (photoIds: string[], tipCents: number = 0) =>
     req<PriceQuote>('/checkout/quote', {
       method: 'POST',
@@ -143,6 +148,12 @@ export const api = {
 
   deleteAdminPhoto: (photoId: string) => req(`/photos/admin/${photoId}`, { method: 'DELETE' }),
 
+  batchDeleteAdminPhotos: (photoIds: string[]) =>
+    req<{ success: boolean; count: number; message: string }>('/photos/admin/batch-delete', {
+      method: 'POST',
+      body: JSON.stringify({ photoIds })
+    }),
+
   addAdminBib: (photoId: string, bibNumber: string) =>
     req(`/photos/admin/${photoId}/bibs`, {
       method: 'POST',
@@ -155,9 +166,55 @@ export const api = {
       body: JSON.stringify({ bibNumber })
     }),
 
+  rejectAdminBib: (detectionId: string) =>
+    req(`/photos/admin/bibs/${detectionId}/reject`, { method: 'PUT' }),
+
   deleteAdminBib: (detectionId: string) => req(`/photos/admin/bibs/${detectionId}`, { method: 'DELETE' }),
 
-  getAdminBibReview: () => req<{ pendingCount: number; detections: any[] }>('/admin/bib-review'),
+  getAdminBibReview: (params?: { status?: string; eventId?: string; page?: number; limit?: number }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set('status', params.status);
+    if (params?.eventId) sp.set('eventId', params.eventId);
+    if (params?.page) sp.set('page', String(params.page));
+    if (params?.limit) sp.set('limit', String(params.limit));
+    const qs = sp.toString();
+    return req<{ pendingCount: number; totalCount: number; page: number; limit: number; detections: any[] }>(
+      `/admin/bib-review${qs ? `?${qs}` : ''}`
+    );
+  },
+
+  batchConfirmBibs: (detectionIds: string[]) =>
+    req<{ success: boolean; count: number }>('/admin/bib-review/batch-confirm', {
+      method: 'POST',
+      body: JSON.stringify({ detectionIds })
+    }),
+
+  batchRejectBibs: (detectionIds: string[]) =>
+    req<{ success: boolean; count: number }>('/admin/bib-review/batch-reject', {
+      method: 'POST',
+      body: JSON.stringify({ detectionIds })
+    }),
+
+  reprocessEventOcr: (eventId: string, forceAll: boolean = false) =>
+    req<{ success: boolean; message: string; queuedCount: number }>(`/admin/events/${eventId}/reprocess-ocr`, {
+      method: 'POST',
+      body: JSON.stringify({ forceAll })
+    }),
+
+  getEventOcrProgress: (eventId: string) =>
+    req<{
+      total: number;
+      queued: number;
+      processing: number;
+      completed: number;
+      failed: number;
+      bibsCount: number;
+      progressPercent: number;
+      isRunning: boolean;
+    }>(`/admin/events/${eventId}/ocr-progress`),
+
+  reprocessPhotoOcr: (photoId: string) =>
+    req<{ success: boolean; message: string }>(`/admin/photos/${photoId}/reprocess-ocr`, { method: 'POST' }),
 
   getAdminOrders: (status?: string) => req<{ orders: any[] }>(`/admin/orders${status ? `?status=${status}` : ''}`),
 

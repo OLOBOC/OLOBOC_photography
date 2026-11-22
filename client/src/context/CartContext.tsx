@@ -13,7 +13,9 @@ export interface SelectedPhoto {
 interface CartContextType {
   selectedPhotos: SelectedPhoto[];
   addPhoto: (photo: SelectedPhoto) => void;
+  addPhotos: (photos: SelectedPhoto[]) => void;
   removePhoto: (photoId: string) => void;
+  removePhotos: (photoIds: string[]) => void;
   togglePhoto: (photo: SelectedPhoto) => void;
   clearCart: () => void;
   isSelected: (photoId: string) => boolean;
@@ -82,9 +84,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const addPhotos = (photos: SelectedPhoto[]) => {
+    setSelectedPhotos((prev) => {
+      const existingIds = new Set(prev.map((p) => p.id));
+      const toAdd = photos.filter((p) => !existingIds.has(p.id));
+      if (toAdd.length === 0) return prev;
+      showToast(`${toAdd.length} fotografías añadidas a la selección`);
+      return [...prev, ...toAdd];
+    });
+  };
+
   const removePhoto = (photoId: string) => {
     setSelectedPhotos((prev) => prev.filter((p) => p.id !== photoId));
     showToast('Fotografía retirada');
+  };
+
+  const removePhotos = (photoIds: string[]) => {
+    const idSet = new Set(photoIds);
+    setSelectedPhotos((prev) => prev.filter((p) => !idSet.has(p.id)));
+    showToast(`${photoIds.length} fotografías retiradas`);
   };
 
   const togglePhoto = (photo: SelectedPhoto) => {
@@ -107,7 +125,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         selectedPhotos,
         addPhoto,
+        addPhotos,
         removePhoto,
+        removePhotos,
         togglePhoto,
         clearCart,
         isSelected,

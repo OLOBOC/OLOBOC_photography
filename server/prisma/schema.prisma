@@ -67,6 +67,9 @@ model Photo {
   isPublished           Boolean        @default(true)
   isCommercial          Boolean        @default(true)
   downloadCount         Int            @default(0)
+  ocrStatus             String         @default("COMPLETED") // QUEUED, PROCESSING, COMPLETED, FAILED
+  ocrError              String?
+  vehicleRoiJson        String?        // JSON of detected vehicle bounding boxes
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   bibDetections         BibDetection[]
@@ -75,6 +78,7 @@ model Photo {
 
   @@index([eventId])
   @@index([isPublished])
+  @@index([ocrStatus])
 }
 
 model BibDetection {
@@ -87,8 +91,9 @@ model BibDetection {
   bboxY       Int?
   bboxW       Int?
   bboxH       Int?
+  cropBase64  String?  // Data URL of the cropped region for visual verification
   status      String   @default("DETECTED") // DETECTED, CONFIRMED, REJECTED, MANUAL
-  detectedBy  String   @default("TESSERACT_OCR") // TESSERACT_OCR, YOLO_PADDLEOCR, MANUAL
+  detectedBy  String   @default("TESSERACT_OCR") // TESSERACT_OCR, YOLO_PADDLEOCR, MANUAL, VISION_PIPELINE
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

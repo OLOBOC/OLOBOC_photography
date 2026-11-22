@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../api';
 import { EventDetail, PhotoItem } from '../types';
 import { useCart } from '../context/CartContext';
@@ -23,16 +23,24 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
   const [error, setError] = useState<string | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [filterBib, setFilterBib] = useState('');
+  const [sortOrder, setSortOrder] = useState<'default' | 'bib-asc' | 'bib-desc' | 'name'>('default');
   const [coverLoaded, setCoverLoaded] = useState(false);
+  const [packs, setPacks] = useState<any[]>([]);
 
-  const { isSelected, togglePhoto, showToast } = useCart();
+  const { isSelected, togglePhoto, addPhotos, removePhotos, selectedPhotos, openDrawer, quote, count, showToast } = useCart();
 
   useEffect(() => {
     setLoading(true);
     setCoverLoaded(false);
-    api
-      .getEventDetail(slug)
-      .then((data) => setEvent(data))
+
+    Promise.all([
+      api.getEventDetail(slug),
+      api.getPacks().catch(() => ({ baseUnitPriceCents: 149, packs: [] }))
+    ])
+      .then(([eventData, packsData]) => {
+        setEvent(eventData);
+        setPacks(packsData.packs || []);
+      })
       .catch((err) => setError(err.message || 'Error cargando el evento'))
       .finally(() => setLoading(false));
   }, [slug]);
@@ -64,12 +72,71 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
     window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener');
   }, [event]);
 
+  // Filter and sort photos
+  const processedPhotos = useMemo(() => {
+    if (!event) return [];
+    let list = [...event.photos];
+
+    if (filterBib.trim()) {
+      list = list.filter((p) => p.bibs.some((b) => b === filterBib.trim()));
+    }
+
+    if (sortOrder === 'bib-asc') {
+      list.sort((a, b) => {
+        const numA = a.bibs.length > 0 ? parseInt(a.bibs[0], 10) : 9999;
+        const numB = b.bibs.length > 0 ? parseInt(b.bibs[0], 10) : 9999;
+        return numA - numB;
+      });
+    } else if (sortOrder === 'bib-desc') {
+      list.sort((a, b) => {
+        const numA = a.bibs.length > 0 ? parseInt(a.bibs[0], 10) : -1;
+        const numB = b.bibs.length > 0 ? parseInt(b.bibs[0], 10) : -1;
+        return numB - numA;
+      });
+    } else if (sortOrder === 'name') {
+      list.sort((a, b) => a.filename.localeCompare(b.filename));
+    }
+
+    return list;
+  }, [event, filterBib, sortOrder]);
+
+  // Selected photos belonging to this event
+  const selectedInThisEvent = useMemo(() => {
+    if (!event) return [];
+    const eventPhotoIds = new Set(event.photos.map((p) => p.id));
+    return selectedPhotos.filter((sp) => eventPhotoIds.has(sp.id));
+  }, [event, selectedPhotos]);
+
+  const handleSelectAllFiltered = () => {
+    if (!event) return;
+    const toAdd = processedPhotos.map((p) => ({
+      id: p.id,
+      filename: p.filename,
+      previewUrl: p.previewUrl,
+      thumbnailUrl: p.thumbnailUrl,
+      eventName: event.name
+    }));
+    addPhotos(toAdd);
+  };
+
+  const handleDeselectAllInEvent = () => {
+    if (!event) return;
+    const toRemove = event.photos.map((p) => p.id);
+    removePhotos(toRemove);
+  };
+
   if (loading) {
     return (
       <div className="page-pad">
-        <div className="event-loading">
-          <span className="font-mono" style={{ color: 'var(--ac)' }}>CARGANDO GALERÍA</span>
-          <div className="loading-bar" />
+        <div className="event-hero" style={{ minHeight: '360px', background: 'var(--bg2)' }}>
+          <div className="loading-shimmer" style={{ width: '240px', height: '24px', marginBottom: '16px' }} />
+          <div className="loading-shimmer" style={{ width: '480px', height: '60px', marginBottom: '20px' }} />
+          <div className="loading-shimmer" style={{ width: '320px', height: '18px' }} />
+        </div>
+        <div style={{ marginTop: '40px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {[1, 2, 3, 4, 5, 6].map((k) => (
+            <div key={k} className="loading-shimmer" style={{ aspectRatio: '3/2', border: '1px solid var(--line)' }} />
+          ))}
         </div>
       </div>
     );
@@ -88,10 +155,6 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
       </div>
     );
   }
-
-  const filteredPhotos = filterBib.trim()
-    ? event.photos.filter((p) => p.bibs.some((b) => b === filterBib.trim()))
-    : event.photos;
 
   const catColor = CATEGORY_COLORS[event.category] || 'var(--ac)';
 
@@ -153,39 +216,92 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
         </div>
       </div>
 
-      {/* ─── Gallery Section ─── */}
-      <div className="page-pad" style={{ paddingTop: '40px' }}>
-
-        {/* Bib Filter */}
-        {event.photos.length > 0 && (
-          <div className="bib-filter-bar">
-            <span className="font-mono bib-filter-label">BUSCAR POR DORSAL EN ESTE EVENTO:</span>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <input
-                type="number"
-                placeholder="Nº dorsal"
-                className="bib-filter-input"
-                value={filterBib}
-                onChange={(e) => setFilterBib(e.target.value)}
-                min="1"
-                max="9999"
-              />
-              {filterBib && (
-                <button onClick={() => setFilterBib('')} className="btn btn-sm">
-                  LIMPIAR ✕
-                </button>
-              )}
+      {/* ─── Commercial Packs Pricing Banner ─── */}
+      <div className="page-pad" style={{ paddingTop: '28px', paddingBottom: '0' }}>
+        <div className="packs-banner">
+          <div className="font-mono packs-banner-title">
+            TARIFAS DIGITALES & DESCUENTO POR PACKS:
+          </div>
+          <div className="packs-chips-grid">
+            <div className={`pack-chip ${count === 1 ? 'active' : ''}`}>
+              <span className="pack-name font-mono">1 FOTO</span>
+              <span className="pack-price font-display">1,49 €</span>
+              <span className="pack-desc font-mono">Alta res</span>
             </div>
+            {packs.map((pk) => {
+              const isMatch = count >= pk.photoCount;
+              return (
+                <div key={pk.id} className={`pack-chip ${isMatch ? 'active' : ''}`}>
+                  <span className="pack-name font-mono">{pk.name.toUpperCase()}</span>
+                  <span className="pack-price font-display">{(pk.priceCents / 100).toFixed(2)} €</span>
+                  <span className="pack-desc font-mono">{pk.photoCount} fotos · {(pk.priceCents / pk.photoCount / 100).toFixed(2)}€/u</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Gallery Controls & Filter Bar ─── */}
+      <div className="page-pad" style={{ paddingTop: '24px' }}>
+        <div className="gallery-toolbar">
+          {/* Bib Search Filter */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>DORSAL:</span>
+            <input
+              type="number"
+              placeholder="Nº dorsal"
+              className="bib-filter-input"
+              value={filterBib}
+              onChange={(e) => setFilterBib(e.target.value)}
+              min="1"
+              max="9999"
+            />
             {filterBib && (
-              <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>
-                {filteredPhotos.length} resultado{filteredPhotos.length !== 1 ? 's' : ''} para dorsal #{filterBib}
-              </span>
+              <button onClick={() => setFilterBib('')} className="btn btn-sm btn-outline">
+                LIMPIAR ✕
+              </button>
             )}
           </div>
-        )}
+
+          {/* Sort Order */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>ORDEN:</span>
+            <select
+              value={sortOrder}
+              onChange={(e: any) => setSortOrder(e.target.value)}
+              style={{ padding: '8px 12px', fontSize: '11px' }}
+            >
+              <option value="default">Predeterminado</option>
+              <option value="bib-asc">Dorsal (menor a mayor)</option>
+              <option value="bib-desc">Dorsal (mayor a menor)</option>
+              <option value="name">Nombre de archivo</option>
+            </select>
+          </div>
+
+          {/* Batch Selection Action */}
+          <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleSelectAllFiltered}
+              className="btn btn-sm btn-outline"
+              title="Añadir todas las fotos visibles a tu selección"
+            >
+              + SELECCIONAR TODAS ({processedPhotos.length})
+            </button>
+            {selectedInThisEvent.length > 0 && (
+              <button
+                onClick={handleDeselectAllInEvent}
+                className="btn btn-sm"
+                style={{ color: 'var(--mut)' }}
+              >
+                DESELECCIONAR ESTE EVENTO
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Photos Grid / Empty States */}
-        {filteredPhotos.length === 0 ? (
+        {processedPhotos.length === 0 ? (
           <div className="gallery-empty">
             {filterBib ? (
               <>
@@ -194,13 +310,13 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
                   Dorsal #{filterBib} no encontrado
                 </h3>
                 <p style={{ color: 'var(--mut)' }}>
-                  No hay fotografías con ese dorsal en este evento.<br />
+                  No se encontraron fotografías con el dorsal #{filterBib} en este evento.<br />
                   Prueba con otro número o{' '}
                   <button
                     onClick={() => setFilterBib('')}
                     style={{ color: 'var(--ac)', textDecoration: 'underline', cursor: 'pointer' }}
                   >
-                    explora todas las fotos
+                    explora todas las fotografías
                   </button>.
                 </p>
               </>
@@ -219,12 +335,12 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
         ) : (
           <>
             <div className="gallery-count font-mono">
-              {filteredPhotos.length} FOTOGRAFÍA{filteredPhotos.length !== 1 ? 'S' : ''}
+              {processedPhotos.length} FOTOGRAFÍA{processedPhotos.length !== 1 ? 'S' : ''}
               {filterBib ? ` CON DORSAL #${filterBib}` : ' EN ESTE EVENTO'}
             </div>
 
             <div className="photo-masonry">
-              {filteredPhotos.map((p, i) => {
+              {processedPhotos.map((p, i) => {
                 const inCart = isSelected(p.id);
                 return (
                   <div
@@ -273,18 +389,56 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
             </div>
 
             {/* Footer CTA */}
-            <div className="gallery-cta font-mono">
-              <span>¿Encuentras tu coche? Añade las fotos a tu selección y compra sin registro.</span>
-              <span style={{ color: 'var(--mut)' }}>Descarga inmediata en alta resolución · Sin marca de agua</span>
+            <div className="gallery-cta font-mono" style={{ marginBottom: '100px' }}>
+              <span>¿Encuentras tu coche? Añade las fotos a tu selección y compra sin registro previo.</span>
+              <span style={{ color: 'var(--mut)' }}>Descarga inmediata en máxima resolución · Sin marca de agua digital</span>
             </div>
           </>
         )}
       </div>
 
+      {/* ─── Floating Selection Bottom Bar ─── */}
+      {selectedInThisEvent.length > 0 && (
+        <div className="floating-selection-bar">
+          <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+              <span className="font-display" style={{ fontSize: '26px', color: 'var(--ac)' }}>
+                {selectedInThisEvent.length}
+              </span>
+              <span className="font-mono" style={{ fontSize: '11px', color: 'var(--ink)' }}>
+                FOTO{selectedInThisEvent.length !== 1 ? 'S' : ''} SELECCIONADA{selectedInThisEvent.length !== 1 ? 'S' : ''}
+              </span>
+              {quote && (
+                <span className="font-mono" style={{ fontSize: '11px', color: 'var(--success)', marginLeft: '12px' }}>
+                  Total actual: {(quote.totalCents / 100).toFixed(2)} € {quote.appliedPackName && `(${quote.appliedPackName})`}
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button
+                onClick={handleDeselectAllInEvent}
+                className="btn btn-sm btn-outline"
+                style={{ padding: '8px 14px', fontSize: '11px' }}
+              >
+                LIMPIAR EVENTO
+              </button>
+              <button
+                onClick={openDrawer}
+                className="btn btn-sm btn-primary"
+                style={{ padding: '8px 20px', fontSize: '11px' }}
+              >
+                VER SELECCIÓN Y COMPRAR ({count}) →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Photo Viewer Modal */}
       {viewerIndex !== null && (
         <PhotoViewer
-          photos={filteredPhotos}
+          photos={processedPhotos}
           initialIndex={viewerIndex}
           eventName={event.name}
           onClose={() => setViewerIndex(null)}

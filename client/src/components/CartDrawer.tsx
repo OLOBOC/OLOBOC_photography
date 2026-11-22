@@ -284,8 +284,8 @@ export const CartDrawer: React.FC = () => {
                 {isSubmitting ? 'Iniciando pago…' : 'PAGAR DE MANERA SEGURA →'}
               </button>
 
-              <span className="font-mono" style={{ fontSize: '9px', textAlign: 'center', color: 'var(--mut)' }}>
-                Pago procesado mediante pasarela Stripe. Descarga inmediata en alta resolución sin marca de agua.
+              <span className="font-mono" style={{ fontSize: '9px', textAlign: 'center', color: 'var(--mut)', lineHeight: 1.4 }}>
+                🔒 Pago seguro SSL 256-bit mediante Stripe. Descarga inmediata en máxima resolución (18 MP) sin marcas de agua.
               </span>
             </form>
           </div>

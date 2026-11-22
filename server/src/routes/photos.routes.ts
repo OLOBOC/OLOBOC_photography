@@ -7,6 +7,7 @@ import { prisma } from '../db/prisma.js';
 import { imageService } from '../services/image.service.js';
 import { storageService } from '../services/storage.service.js';
 import { bibRecognitionService } from '../services/ocr.service.js';
+import { ocrQueueService } from '../services/queue.service.js';
 import { requireAdmin, AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -171,14 +172,8 @@ router.post(
           }
         });
 
-        // 3. Queue OCR detection pipeline asynchronously to prevent HTTP gateway timeouts
-        setImmediate(async () => {
-          try {
-            await bibRecognitionService.processAndSavePhotoBibs(photo.id, file.buffer);
-          } catch (e) {
-            console.error(`[Async OCR] Error processing photo ${photo.id}:`, e);
-          }
-        });
+        // 3. Queue Vision AI detection pipeline via controlled background queue
+        await ocrQueueService.enqueue(photo.id, eventId, file.buffer);
 
         processedPhotos.push({
           id: photo.id,
@@ -258,7 +253,21 @@ router.post('/admin/:id/bibs', requireAdmin, async (req: AuthenticatedRequest, r
   }
 });
 
-// Admin: Remove bib detection
+// Admin: Reject bib detection (sets status to REJECTED rather than deleting, for audit)
+router.put('/admin/bibs/:id/reject', requireAdmin, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+    const updated = await prisma.bibDetection.update({
+      where: { id },
+      data: { status: 'REJECTED' }
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: Remove bib detection completely
 router.delete('/admin/bibs/:id', requireAdmin, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
@@ -308,6 +317,37 @@ router.delete('/admin/:id', requireAdmin, async (req: AuthenticatedRequest, res:
     await prisma.photo.delete({ where: { id } });
 
     res.json({ success: true, message: 'Fotografía eliminada' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: Batch delete multiple photos and derivatives
+router.post('/admin/batch-delete', requireAdmin, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { photoIds } = req.body;
+    if (!Array.isArray(photoIds) || photoIds.length === 0) {
+      return res.status(400).json({ error: 'Debes proporcionar al menos un ID de fotografía' });
+    }
+
+    const photos = await prisma.photo.findMany({
+      where: { id: { in: photoIds } }
+    });
+
+    for (const p of photos) {
+      await storageService.deletePhotoFiles({
+        original: p.storageKeyOriginal,
+        watermarked: p.storageKeyWatermarked,
+        preview: p.storageKeyPreview,
+        thumbnail: p.storageKeyThumbnail
+      }).catch((e) => console.error(`Error deleting storage files for photo ${p.id}:`, e));
+    }
+
+    const result = await prisma.photo.deleteMany({
+      where: { id: { in: photoIds } }
+    });
+
+    res.json({ success: true, count: result.count, message: `${result.count} fotografías eliminadas correctamente` });
   } catch (err) {
     next(err);
   }

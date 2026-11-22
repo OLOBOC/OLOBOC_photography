@@ -22,10 +22,29 @@ export const App: React.FC = () => {
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1) || 'home';
       setCurrentRoute(hash);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // If navigating to an anchor section on home page (e.g. discover, about, contact)
+      if (['discover', 'about', 'contact'].includes(hash)) {
+        setTimeout(() => {
+          const el = document.getElementById(hash);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth' });
+            return;
+          }
+        }, 80);
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     };
 
     window.addEventListener('hashchange', handleHashChange);
+    // Initial load check for hash anchors
+    if (['discover', 'about', 'contact'].includes(window.location.hash.slice(1))) {
+      setTimeout(() => {
+        const hash = window.location.hash.slice(1);
+        document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+    }
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 

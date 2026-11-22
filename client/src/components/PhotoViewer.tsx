@@ -30,13 +30,32 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') step(1);
-      if (e.key === 'ArrowLeft') step(-1);
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowRight') {
+        step(1);
+      } else if (e.key === 'ArrowLeft') {
+        step(-1);
+      } else if (e.code === 'Space' || e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (currentPhoto) {
+          togglePhoto({
+            id: currentPhoto.id,
+            filename: currentPhoto.filename,
+            previewUrl: currentPhoto.previewUrl,
+            thumbnailUrl: currentPhoto.thumbnailUrl,
+            eventName
+          });
+        }
+      } else if (e.key.toLowerCase() === 'z') {
+        setIsZoomed((prev) => !prev);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [step, onClose]);
+  }, [step, onClose, currentPhoto, togglePhoto, eventName]);
 
   // Touch swipe support
   useEffect(() => {
