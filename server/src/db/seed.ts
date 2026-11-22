@@ -11,6 +11,13 @@ async function main() {
   });
 
   if (!existingAdmin) {
+    if (config.isProduction && config.adminInitialPassword === 'Admin_Oloboc_2026!') {
+      throw new Error(
+        '[SECURITY FATAL] En entorno de PRODUCCIÓN no está permitido utilizar la contraseña por defecto "Admin_Oloboc_2026!". ' +
+        'Configura una contraseña segura y única en la variable de entorno ADMIN_INITIAL_PASSWORD antes de ejecutar el seed.'
+      );
+    }
+
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(config.adminInitialPassword, salt);
 

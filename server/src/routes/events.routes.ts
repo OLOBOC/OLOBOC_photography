@@ -207,11 +207,34 @@ router.put('/:id', requireAdmin, async (req: AuthenticatedRequest, res: Response
 });
 
 // Admin: Delete Event
+import { storageService } from '../services/storage.service.js';
+
 router.delete('/:id', requireAdmin, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
+
+    // Fetch and clean up all associated photo files on disk
+    const eventPhotos = await prisma.photo.findMany({
+      where: { eventId: id },
+      select: {
+        storageKeyOriginal: true,
+        storageKeyWatermarked: true,
+        storageKeyPreview: true,
+        storageKeyThumbnail: true
+      }
+    });
+
+    for (const p of eventPhotos) {
+      await storageService.deletePhotoFiles({
+        original: p.storageKeyOriginal,
+        watermarked: p.storageKeyWatermarked,
+        preview: p.storageKeyPreview,
+        thumbnail: p.storageKeyThumbnail
+      });
+    }
+
     await prisma.event.delete({ where: { id } });
-    res.json({ success: true, message: 'Evento eliminado correctamente' });
+    res.json({ success: true, message: 'Evento y archivos asociados eliminados correctamente' });
   } catch (err) {
     next(err);
   }

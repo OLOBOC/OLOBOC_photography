@@ -21,19 +21,19 @@ class StorageService {
   }
 
   getOriginalPath(filename: string): string {
-    return path.join(this.baseDir, 'originals', filename);
+    return path.join(this.baseDir, 'originals', path.basename(filename));
   }
 
   getWatermarkedPath(filename: string): string {
-    return path.join(this.baseDir, 'watermarked', filename);
+    return path.join(this.baseDir, 'watermarked', path.basename(filename));
   }
 
   getPreviewPath(filename: string): string {
-    return path.join(this.baseDir, 'previews', filename);
+    return path.join(this.baseDir, 'previews', path.basename(filename));
   }
 
   getThumbnailPath(filename: string): string {
-    return path.join(this.baseDir, 'thumbnails', filename);
+    return path.join(this.baseDir, 'thumbnails', path.basename(filename));
   }
 
   async saveOriginal(filename: string, buffer: Buffer): Promise<string> {

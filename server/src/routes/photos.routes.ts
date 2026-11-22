@@ -171,15 +171,21 @@ router.post(
           }
         });
 
-        // 3. Run OCR detection pipeline on the original buffer
-        const detectedBibs = await bibRecognitionService.processAndSavePhotoBibs(photo.id, file.buffer);
+        // 3. Queue OCR detection pipeline asynchronously to prevent HTTP gateway timeouts
+        setImmediate(async () => {
+          try {
+            await bibRecognitionService.processAndSavePhotoBibs(photo.id, file.buffer);
+          } catch (e) {
+            console.error(`[Async OCR] Error processing photo ${photo.id}:`, e);
+          }
+        });
 
         processedPhotos.push({
           id: photo.id,
           filename: photo.originalFilename,
           thumbnailUrl: `/api/photos/thumb/${photo.storageKeyThumbnail}`,
           previewUrl: `/api/photos/preview/${photo.storageKeyPreview}`,
-          detectedBibs: detectedBibs.map((b) => ({ bibNumber: b.bibNumber, confidence: b.confidence }))
+          ocrStatus: 'QUEUED'
         });
       }
 
