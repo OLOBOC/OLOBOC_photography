@@ -39,8 +39,8 @@ Cuando `NODE_ENV !== 'production'` y las claves de Stripe no están configuradas
 ## 4. Configuración para Producción
 
 En el panel de Stripe (https://dashboard.stripe.com/):
-1. Obtén tu Clave Secreta (`STRIPE_SECRET_KEY`, formato `sk_live_...`).
+1. Obtén tu Clave Secreta (`STRIPE_SECRET_KEY`) desde el Dashboard de Stripe.
 2. Crea un endpoint de webhook apuntando a: `https://tudominio.com/api/checkout/webhook`.
 3. Selecciona el evento: `checkout.session.completed`.
-4. Copia el Secreto de Firma del Webhook (`STRIPE_WEBHOOK_SECRET`, formato `whsec_...`).
+4. Copia el Secreto de Firma del Webhook (`STRIPE_WEBHOOK_SECRET`) desde el Dashboard.
 5. Añade ambas variables al archivo de entorno del servidor.

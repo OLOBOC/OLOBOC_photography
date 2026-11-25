@@ -60,12 +60,12 @@ export const api = {
       body: JSON.stringify({ photoIds, tipCents })
     }),
 
-  createCheckoutSession: (photoIds: string[], customerEmail: string, tipCents: number = 0) =>
+  createCheckoutSession: (photoIds: string[], customerEmail: string, tipCents: number = 0, acceptDigitalTerms: boolean = true) =>
     req<{ orderId: string; orderNumber: string; downloadToken: string; sessionUrl: string; isDevSimulation: boolean }>(
       '/checkout/create-session',
       {
         method: 'POST',
-        body: JSON.stringify({ photoIds, customerEmail, tipCents })
+        body: JSON.stringify({ photoIds, customerEmail, tipCents, acceptDigitalTerms })
       }
     ),
 
@@ -216,9 +216,32 @@ export const api = {
   reprocessPhotoOcr: (photoId: string) =>
     req<{ success: boolean; message: string }>(`/admin/photos/${photoId}/reprocess-ocr`, { method: 'POST' }),
 
-  getAdminOrders: (status?: string) => req<{ orders: any[] }>(`/admin/orders${status ? `?status=${status}` : ''}`),
+  getAdminOrders: (params?: { status?: string; search?: string; page?: number; limit?: number } | string) => {
+    const sp = new URLSearchParams();
+    if (typeof params === 'string') {
+      if (params) sp.set('status', params);
+    } else if (params) {
+      if (params.status) sp.set('status', params.status);
+      if (params.search) sp.set('search', params.search);
+      if (params.page) sp.set('page', String(params.page));
+      if (params.limit) sp.set('limit', String(params.limit));
+    }
+    const qs = sp.toString();
+    return req<{ orders: any[]; pagination?: { totalCount: number; page: number; limit: number; totalPages: number } }>(
+      `/admin/orders${qs ? `?${qs}` : ''}`
+    );
+  },
 
-  refundAdminOrder: (orderId: string) => req(`/admin/orders/${orderId}/refund`, { method: 'POST' }),
+  refundAdminOrder: (orderId: string, reason?: string) =>
+    req<{ success: boolean; order: any; stripeRefundId: string | null; isDevSimulation: boolean }>(
+      `/admin/orders/${orderId}/refund`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      }
+    ),
+
+  getAdminEmailLogs: () => req<{ logs: any[] }>('/admin/orders/email-logs'),
 
   getAdminSettings: () => req<{ settings: Record<string, string> }>('/admin/settings'),
 

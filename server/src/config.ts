@@ -14,6 +14,24 @@ export const config = {
   adminInitialEmail: process.env.ADMIN_INITIAL_EMAIL || 'admin@oloboc.com',
   adminInitialPassword: process.env.ADMIN_INITIAL_PASSWORD || 'Admin_Oloboc_2026!',
   contactForwardEmail: process.env.CONTACT_FORWARD_EMAIL || 'contacto@oloboc.com',
+  email: {
+    smtpHost: process.env.SMTP_HOST || '',
+    smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
+    smtpSecure: process.env.SMTP_SECURE === 'true',
+    fromEmail: process.env.SMTP_FROM || 'OLOBOC_ Motorsport <pedidos@oloboc.com>',
+    isConfigured: !!(process.env.SMTP_HOST && process.env.SMTP_USER)
+  },
+  s3: {
+    bucket: process.env.S3_BUCKET || '',
+    region: process.env.S3_REGION || 'auto',
+    endpoint: process.env.S3_ENDPOINT || '',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+    publicCdnUrl: process.env.S3_PUBLIC_CDN_URL || '',
+    isConfigured: !!(process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY)
+  },
   watermark: {
     text: 'OLOBOC_',
     opacity: 0.28,

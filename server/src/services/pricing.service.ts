@@ -10,6 +10,9 @@ export interface PriceBreakdown {
   totalCents: number;
   appliedPackName: string | null;
   savingsCents: number;
+  taxRatePercent: number;
+  taxAmountCents: number;
+  netSubtotalCents: number;
   verifiedPhotos: Array<{
     id: string;
     originalFilename: string;
@@ -50,6 +53,9 @@ export class PricingService {
         totalCents: 0,
         appliedPackName: null,
         savingsCents: 0,
+        taxRatePercent: 21,
+        taxAmountCents: 0,
+        netSubtotalCents: 0,
         verifiedPhotos: []
       };
     }
@@ -112,6 +118,10 @@ export class PricingService {
     const validatedTip = Math.max(0, Math.floor(tipCents || 0));
     const totalCents = subtotalCents + validatedTip;
 
+    // Spanish B2C eCommerce standard VAT (21% included in retail price)
+    const netSubtotalCents = Math.round(subtotalCents / 1.21);
+    const taxAmountCents = subtotalCents - netSubtotalCents;
+
     return {
       photoCount: count,
       unitPriceCents,
@@ -122,6 +132,9 @@ export class PricingService {
       totalCents,
       appliedPackName: packChoice[count],
       savingsCents: discountCents,
+      taxRatePercent: 21,
+      taxAmountCents,
+      netSubtotalCents,
       verifiedPhotos: photos
     };
   }

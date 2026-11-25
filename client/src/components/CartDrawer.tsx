@@ -17,6 +17,7 @@ export const CartDrawer: React.FC = () => {
   } = useCart();
 
   const [customerEmail, setCustomerEmail] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -31,6 +32,11 @@ export const CartDrawer: React.FC = () => {
       return;
     }
 
+    if (!acceptTerms) {
+      setErrorMsg('Debes aceptar las condiciones de suministro digital y renuncia al desistimiento.');
+      return;
+    }
+
     if (selectedPhotos.length === 0) {
       setErrorMsg('Tu selección está vacía.');
       return;
@@ -41,7 +47,8 @@ export const CartDrawer: React.FC = () => {
       const session = await api.createCheckoutSession(
         selectedPhotos.map((p) => p.id),
         customerEmail,
-        tipCents
+        tipCents,
+        acceptTerms
       );
 
       clearCart();
@@ -275,9 +282,34 @@ export const CartDrawer: React.FC = () => {
                 <div style={{ color: 'var(--danger)', fontSize: '12px' }}>{errorMsg}</div>
               )}
 
+              {/* Digital Goods Legal Waiver Checkbox (Art. 103.m LGDCU) */}
+              <label
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  alignItems: 'flex-start',
+                  fontSize: '11px',
+                  color: 'var(--ink)',
+                  cursor: 'pointer',
+                  lineHeight: 1.4,
+                  marginTop: '4px'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  style={{ marginTop: '2px', cursor: 'pointer' }}
+                  required
+                />
+                <span>
+                  Consiento expresamente el suministro inmediato del contenido digital y acepto que pierdo el derecho de desistimiento conforme al Art. 103.m del TRLGDCU. He leído las <a href="#condiciones-compra" onClick={closeDrawer} style={{ color: 'var(--ac)', textDecoration: 'underline' }}>condiciones de compra</a>.
+                </span>
+              </label>
+
               <button
                 type="submit"
-                disabled={isSubmitting || isLoadingQuote}
+                disabled={isSubmitting || isLoadingQuote || !acceptTerms}
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '16px' }}
               >

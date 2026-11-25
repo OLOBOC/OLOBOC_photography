@@ -137,6 +137,9 @@ model Order {
   tipAmountCents        Int         @default(0)
   ipAddress             String?
   userAgent             String?
+  confirmationEmailSentAt DateTime?
+  refundedAt            DateTime?
+  refundReason          String?
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   items                 OrderItem[]
@@ -144,6 +147,21 @@ model Order {
   @@index([customerEmail])
   @@index([downloadToken])
   @@index([status])
+}
+
+model EmailLog {
+  id          String   @id @default(uuid())
+  orderId     String?
+  recipient   String
+  subject     String
+  template    String   // ORDER_CONFIRMATION, ORDER_REFUNDED, CONTACT_NOTIFICATION
+  status      String   // SENT, SIMULATED, FAILED
+  error       String?
+  sentAt      DateTime @default(now())
+
+  @@index([recipient])
+  @@index([orderId])
+  @@index([template])
 }
 
 model OrderItem {

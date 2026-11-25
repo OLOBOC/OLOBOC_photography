@@ -38,6 +38,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [ocrProgress, setOcrProgress] = useState<any>(null);
   const [isReprocessing, setIsReprocessing] = useState<boolean>(false);
   const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [orderFilterStatus, setOrderFilterStatus] = useState<string>('all');
+  const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState<any | null>(null);
+  const [isRefunding, setIsRefunding] = useState<boolean>(false);
   const [packsList, setPacksList] = useState<PackItem[]>([]);
   const [settingsMap, setSettingsMap] = useState<Record<string, string>>({});
   const [takedownsList, setTakedownsList] = useState<any[]>([]);
@@ -351,6 +355,39 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     } catch (e: any) {
       setIsReprocessing(false);
       alert(e.message);
+    }
+  };
+
+  // Orders management actions
+  const loadOrders = async (status = orderFilterStatus, search = orderSearchQuery) => {
+    try {
+      const res = await api.getAdminOrders({
+        status: status !== 'all' ? status : undefined,
+        search: search.trim() || undefined
+      });
+      setOrdersList(res.orders);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRefundOrder = async (orderId: string, orderNumber: string) => {
+    const reason = window.prompt(`¿Motivo del reembolso para el pedido ${orderNumber}?`, 'Solicitado por el cliente');
+    if (reason === null) return;
+
+    try {
+      setIsRefunding(true);
+      const res = await api.refundAdminOrder(orderId, reason);
+      showToast(`Pedido ${orderNumber} reembolsado correctamente`);
+      if (res.stripeRefundId) {
+        showToast(`Stripe Refund ID: ${res.stripeRefundId}`);
+      }
+      setSelectedOrderDetail(null);
+      await loadOrders();
+    } catch (e: any) {
+      alert(`Error al procesar el reembolso: ${e.message}`);
+    } finally {
+      setIsRefunding(false);
     }
   };
 
@@ -1663,62 +1700,252 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         {/* TAB 6: ORDERS & SALES */}
         {activeTab === 'orders' && (
           <div>
-            <div className="font-mono">Commerce & Fulfillment</div>
+            <div className="font-mono" style={{ color: 'var(--ac)' }}>COMMERCE & FULFILLMENT</div>
             <h1 className="font-display" style={{ fontSize: '56px', margin: '4px 0 24px' }}>
               Pedidos y ventas
             </h1>
 
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>PEDIDO</th>
-                  <th>CLIENTE</th>
-                  <th>IMPORTE</th>
-                  <th>FOTOS</th>
-                  <th>ESTADO</th>
-                  <th>DESCARGAS</th>
-                  <th>FECHA</th>
-                  <th>ACCIONES</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordersList.map((o) => (
-                  <tr key={o.id}>
-                    <td><strong>{o.orderNumber}</strong></td>
-                    <td>{o.customerEmail}</td>
-                    <td style={{ fontWeight: 600, color: 'var(--ac)' }}>
-                      {(o.totalAmountCents / 100).toFixed(2)} €
-                    </td>
-                    <td className="font-mono">{o.items?.length || 0}</td>
-                    <td>
-                      <span className={`pill ${o.status === 'PAID' ? 'pill-success' : o.status === 'REFUNDED' ? 'pill-danger' : 'pill-warning'}`}>
-                        {o.status}
-                      </span>
-                    </td>
-                    <td className="font-mono">{o.downloadCount} / {o.maxDownloads}</td>
-                    <td className="font-mono">{new Date(o.createdAt).toLocaleDateString('es-ES')}</td>
-                    <td>
-                      {o.status === 'PAID' && (
-                        <button
-                          onClick={async () => {
-                            if (window.confirm(`¿Reembolsar el pedido ${o.orderNumber} y revocar acceso de descarga?`)) {
-                              await api.refundAdminOrder(o.id);
-                              showToast('Pedido reembolsado');
-                              const ords = await api.getAdminOrders();
-                              setOrdersList(ords.orders);
-                            }
-                          }}
-                          className="btn btn-sm"
-                          style={{ color: 'var(--danger)' }}
-                        >
-                          REEMBOLSAR
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+            {/* Filter toolbar */}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[
+                  { id: 'all', label: 'TODOS' },
+                  { id: 'PAID', label: 'PAGADOS' },
+                  { id: 'PENDING', label: 'PENDIENTES' },
+                  { id: 'REFUNDED', label: 'REEMBOLSADOS' }
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    onClick={() => {
+                      setOrderFilterStatus(st.id);
+                      loadOrders(st.id, orderSearchQuery);
+                    }}
+                    className={`btn btn-sm ${orderFilterStatus === st.id ? 'btn-primary' : 'btn-outline'}`}
+                  >
+                    {st.label}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              <div style={{ flex: '1 1 240px', minWidth: '200px' }}>
+                <input
+                  type="text"
+                  placeholder="Buscar por nº pedido o email del cliente…"
+                  value={orderSearchQuery}
+                  onChange={(e) => {
+                    setOrderSearchQuery(e.target.value);
+                    loadOrders(orderFilterStatus, e.target.value);
+                  }}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+
+            {ordersList.length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', background: 'var(--bg2)', border: '1px solid var(--line)' }}>
+                <p className="font-mono" style={{ color: 'var(--mut)' }}>No se encontraron pedidos con los filtros actuales.</p>
+              </div>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>PEDIDO</th>
+                    <th>CLIENTE</th>
+                    <th>IMPORTE</th>
+                    <th>FOTOS</th>
+                    <th>ESTADO</th>
+                    <th>EMAIL</th>
+                    <th>DESCARGAS</th>
+                    <th>FECHA</th>
+                    <th>ACCIONES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordersList.map((o) => (
+                    <tr key={o.id}>
+                      <td>
+                        <strong>{o.orderNumber}</strong>
+                        {o.appliedPackName && (
+                          <div className="font-mono" style={{ fontSize: '10px', color: 'var(--ac)' }}>
+                            {o.appliedPackName}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span>{o.customerEmail}</span>
+                      </td>
+                      <td style={{ fontWeight: 600, color: 'var(--ac)' }}>
+                        {(o.totalAmountCents / 100).toFixed(2)} €
+                      </td>
+                      <td className="font-mono">{o.items?.length || 0}</td>
+                      <td>
+                        <span className={`pill ${o.status === 'PAID' ? 'pill-success' : o.status === 'REFUNDED' ? 'pill-danger' : 'pill-warning'}`}>
+                          {o.status}
+                        </span>
+                      </td>
+                      <td>
+                        {o.confirmationEmailSentAt ? (
+                          <span className="font-mono" style={{ fontSize: '11px', color: 'var(--success)' }}>
+                            ✓ ENVIADO
+                          </span>
+                        ) : (
+                          <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>
+                            -
+                          </span>
+                        )}
+                      </td>
+                      <td className="font-mono">{o.downloadCount} / {o.maxDownloads}</td>
+                      <td className="font-mono">{new Date(o.createdAt).toLocaleDateString('es-ES')}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            onClick={() => setSelectedOrderDetail(o)}
+                            className="btn btn-sm btn-outline"
+                          >
+                            DETALLES
+                          </button>
+                          {o.status === 'PAID' && (
+                            <button
+                              onClick={() => handleRefundOrder(o.id, o.orderNumber)}
+                              disabled={isRefunding}
+                              className="btn btn-sm"
+                              style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                            >
+                              REEMBOLSAR
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {/* Order Detail Modal */}
+            {selectedOrderDetail && (
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 200,
+                  background: 'rgba(0,0,0,0.8)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '20px'
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) setSelectedOrderDetail(null);
+                }}
+              >
+                <div
+                  style={{
+                    background: 'var(--bg2)',
+                    border: '1px solid var(--line)',
+                    width: 'min(640px, 100%)',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    padding: '28px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                    <div>
+                      <span className="font-mono" style={{ color: 'var(--ac)', fontSize: '11px' }}>
+                        DETALLES DEL PEDIDO
+                      </span>
+                      <h2 className="font-display" style={{ fontSize: '36px', margin: '4px 0 0' }}>
+                        {selectedOrderDetail.orderNumber}
+                      </h2>
+                    </div>
+                    <button onClick={() => setSelectedOrderDetail(null)} className="btn btn-sm btn-outline">
+                      ✕
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px', background: 'var(--bg)', padding: '16px', border: '1px solid var(--line)' }}>
+                    <div>
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>CLIENTE:</span>
+                      <p style={{ fontWeight: 600, fontSize: '14px', marginTop: '2px' }}>{selectedOrderDetail.customerEmail}</p>
+                    </div>
+                    <div>
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>ESTADO:</span>
+                      <p style={{ fontWeight: 600, fontSize: '14px', marginTop: '2px' }}>{selectedOrderDetail.status}</p>
+                    </div>
+                    <div>
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>TOTAL ABONADO:</span>
+                      <p style={{ fontWeight: 600, fontSize: '14px', marginTop: '2px', color: 'var(--ac)' }}>
+                        {(selectedOrderDetail.totalAmountCents / 100).toFixed(2)} €
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>DESCARGAS:</span>
+                      <p style={{ fontWeight: 600, fontSize: '14px', marginTop: '2px' }}>
+                        {selectedOrderDetail.downloadCount} / {selectedOrderDetail.maxDownloads}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>CONFIRMACIÓN EMAIL:</span>
+                      <p style={{ fontWeight: 600, fontSize: '13px', marginTop: '2px' }}>
+                        {selectedOrderDetail.confirmationEmailSentAt ? `Enviado ${new Date(selectedOrderDetail.confirmationEmailSentAt).toLocaleTimeString('es-ES')}` : 'No enviado'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-mono" style={{ fontSize: '11px', color: 'var(--mut)' }}>TOKEN VIGENTE HASTA:</span>
+                      <p style={{ fontWeight: 600, fontSize: '13px', marginTop: '2px' }}>
+                        {new Date(selectedOrderDetail.downloadExpiresAt).toLocaleDateString('es-ES')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {selectedOrderDetail.refundedAt && (
+                    <div style={{ background: 'rgba(232, 67, 31, 0.1)', border: '1px solid var(--danger)', padding: '12px', marginBottom: '20px' }}>
+                      <span className="font-mono" style={{ color: 'var(--danger)', fontSize: '11px' }}>INFORMACIÓN DEL REEMBOLSO:</span>
+                      <p style={{ fontSize: '13px', marginTop: '4px' }}>
+                        Reembolsado el {new Date(selectedOrderDetail.refundedAt).toLocaleString('es-ES')}. Motivo: {selectedOrderDetail.refundReason || 'Administrativo'}.
+                      </p>
+                    </div>
+                  )}
+
+                  <h3 className="font-display" style={{ fontSize: '22px', marginBottom: '12px' }}>
+                    Fotografías ({selectedOrderDetail.items?.length || 0})
+                  </h3>
+                  <div style={{ display: 'grid', gap: '8px', marginBottom: '24px' }}>
+                    {selectedOrderDetail.items?.map((it: any) => (
+                      <div key={it.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', background: 'var(--bg)', padding: '8px 12px', border: '1px solid var(--line)' }}>
+                        <div style={{ width: '50px', height: '36px', overflow: 'hidden', background: '#000', flexShrink: 0 }}>
+                          <img src={`/api/photos/thumb/${it.photo.storageKeyThumbnail}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>{it.photo.originalFilename}</p>
+                          <span className="font-mono" style={{ fontSize: '10px', color: 'var(--mut)' }}>ID: {it.photo.id}</span>
+                        </div>
+                        <span className="font-mono" style={{ fontSize: '12px' }}>
+                          {(it.priceCents / 100).toFixed(2)} €
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    {selectedOrderDetail.status === 'PAID' && (
+                      <button
+                        onClick={() => handleRefundOrder(selectedOrderDetail.id, selectedOrderDetail.orderNumber)}
+                        disabled={isRefunding}
+                        className="btn btn-sm"
+                        style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                      >
+                        {isRefunding ? 'PROCESANDO…' : 'REEMBOLSAR PEDIDO'}
+                      </button>
+                    )}
+                    <button onClick={() => setSelectedOrderDetail(null)} className="btn btn-sm btn-outline">
+                      CERRAR
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

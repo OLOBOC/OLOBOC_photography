@@ -26,6 +26,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
   const [sortOrder, setSortOrder] = useState<'default' | 'bib-asc' | 'bib-desc' | 'name'>('default');
   const [coverLoaded, setCoverLoaded] = useState(false);
   const [packs, setPacks] = useState<any[]>([]);
+  const [visibleCount, setVisibleCount] = useState(40);
 
   const { isSelected, togglePhoto, addPhotos, removePhotos, selectedPhotos, openDrawer, quote, count, showToast } = useCart();
 
@@ -40,6 +41,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
       .then(([eventData, packsData]) => {
         setEvent(eventData);
         setPacks(packsData.packs || []);
+        document.title = `${eventData.name} — OLOBOC_ Motorsport`;
       })
       .catch((err) => setError(err.message || 'Error cargando el evento'))
       .finally(() => setLoading(false));
@@ -74,6 +76,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
 
   // Filter and sort photos
   const processedPhotos = useMemo(() => {
+    setVisibleCount(40);
     if (!event) return [];
     let list = [...event.photos];
 
@@ -340,7 +343,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
             </div>
 
             <div className="photo-masonry">
-              {processedPhotos.map((p, i) => {
+              {processedPhotos.slice(0, visibleCount).map((p, i) => {
                 const inCart = isSelected(p.id);
                 return (
                   <div
@@ -387,6 +390,19 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ slug, onNaviga
                 );
               })}
             </div>
+
+            {/* Load more button if there are more photos */}
+            {visibleCount < processedPhotos.length && (
+              <div style={{ textAlign: 'center', margin: '36px 0' }}>
+                <button
+                  onClick={() => setVisibleCount((prev) => prev + 40)}
+                  className="btn btn-outline"
+                  style={{ padding: '12px 32px', fontSize: '13px' }}
+                >
+                  CARGAR MÁS FOTOGRAFÍAS ({processedPhotos.length - visibleCount} RESTANTES) ↓
+                </button>
+              </div>
+            )}
 
             {/* Footer CTA */}
             <div className="gallery-cta font-mono" style={{ marginBottom: '100px' }}>

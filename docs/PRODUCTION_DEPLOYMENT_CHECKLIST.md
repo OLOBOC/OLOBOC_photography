@@ -16,9 +16,9 @@ Elaborado por **Nortcode** (https://www.nortcode.es/).
   - Configurar `DATABASE_URL` hacia una instancia de PostgreSQL gestionada.
 - [ ] **Pasarela de Pago Stripe**:
   - Dar de alta la cuenta de Stripe y completar la verificación bancaria e identidad fiscal.
-  - Obtener las claves en vivo (`sk_live_...`).
+  - Obtener las claves en vivo desde el Dashboard de Stripe.
   - Configurar el Webhook de producción apuntando a `https://tudominio.com/api/checkout/webhook`.
-  - Registrar el secreto de webhook (`whsec_...`) en las variables de entorno.
+  - Registrar el secreto de webhook en las variables de entorno.
 - [ ] **Almacenamiento de Fotografías**:
   - Para volumen estándar: Almacenamiento en volumen persistente SSD del VPS (`STORAGE_DRIVER=local`).
   - Para alto volumen: Activar Cloudflare R2 o AWS S3 (`STORAGE_DRIVER=s3`) para abaratar costes de salida de datos a cero.

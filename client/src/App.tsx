@@ -13,10 +13,35 @@ import { OrderLookupPage } from './pages/OrderLookupPage';
 import { LegalPage } from './pages/LegalPage';
 import { AdminPage } from './pages/AdminPage';
 
+const getInitialRoute = (): string => {
+  const hash = window.location.hash.slice(1);
+  if (hash) return hash;
+
+  const pathname = window.location.pathname.replace(/^\/+/, '');
+  const search = window.location.search;
+
+  if (pathname.startsWith('order-success')) {
+    const fullRoute = `order-success${search}`;
+    window.location.hash = `#${fullRoute}`;
+    return fullRoute;
+  }
+
+  if (pathname.startsWith('event/')) {
+    const slug = pathname.replace('event/', '');
+    window.location.hash = `#event-${slug}`;
+    return `event-${slug}`;
+  }
+
+  if (['archive', 'order-lookup', 'admin', 'aviso-legal', 'privacidad', 'cookies', 'licencia-imagen', 'condiciones-compra'].includes(pathname)) {
+    window.location.hash = `#${pathname}`;
+    return pathname;
+  }
+
+  return 'home';
+};
+
 export const App: React.FC = () => {
-  const [currentRoute, setCurrentRoute] = useState<string>(() => {
-    return window.location.hash.slice(1) || 'home';
-  });
+  const [currentRoute, setCurrentRoute] = useState<string>(getInitialRoute);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -59,18 +84,25 @@ export const App: React.FC = () => {
       return <EventDetailPage slug={slug} onNavigate={navigateTo} />;
     }
 
-    // 2. Order success route: #order-success?token=...
+    // 2. Order success route: #order-success?token=... or order-success
     if (currentRoute.startsWith('order-success')) {
-      const urlParams = new URLSearchParams(currentRoute.split('?')[1] || window.location.search);
-      const token = urlParams.get('token') || '';
+      let token = '';
+      if (currentRoute.includes('?')) {
+        const params = new URLSearchParams(currentRoute.split('?')[1]);
+        token = params.get('token') || '';
+      }
+      if (!token && window.location.search) {
+        const params = new URLSearchParams(window.location.search);
+        token = params.get('token') || '';
+      }
       return <OrderSuccessPage token={token} onNavigate={navigateTo} />;
     }
 
     // 3. Legal pages
-    if (['aviso-legal', 'privacidad', 'cookies', 'licencia-imagen'].includes(currentRoute)) {
+    if (['aviso-legal', 'privacidad', 'cookies', 'licencia-imagen', 'condiciones-compra'].includes(currentRoute)) {
       return (
         <LegalPage
-          page={currentRoute as 'aviso-legal' | 'privacidad' | 'cookies' | 'licencia-imagen'}
+          page={currentRoute as any}
           onNavigate={navigateTo}
         />
       );

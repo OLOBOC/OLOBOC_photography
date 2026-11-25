@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { prisma } from '../db/prisma.js';
 import { requireAdmin, AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { ocrQueueService } from '../services/queue.service.js';
+import { stripeService } from '../services/stripe.service.js';
 
 const router = Router();
 
@@ -259,59 +260,87 @@ router.post('/photos/:id/reprocess-ocr', async (req: AuthenticatedRequest, res: 
   res.json({ success: true, message: 'Foto encolada para reconocimiento' });
 });
 
-// Admin: Orders list
+// Admin: Orders list with search, status filtering & pagination
 router.get('/orders', async (req: AuthenticatedRequest, res: Response) => {
-  const { status } = req.query;
+  const { status, search, page = '1', limit = '50' } = req.query;
 
   const where: any = {};
   if (status && typeof status === 'string' && status !== 'all') {
     where.status = status;
   }
 
-  const orders = await prisma.order.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    include: {
-      items: {
-        include: {
-          photo: {
-            select: { id: true, originalFilename: true, storageKeyThumbnail: true }
+  if (search && typeof search === 'string' && search.trim()) {
+    const q = search.trim();
+    where.OR = [
+      { orderNumber: { contains: q } },
+      { customerEmail: { contains: q.toLowerCase() } }
+    ];
+  }
+
+  const take = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 50));
+  const skip = (Math.max(1, parseInt(String(page), 10) || 1) - 1) * take;
+
+  const [totalCount, orders] = await Promise.all([
+    prisma.order.count({ where }),
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+      include: {
+        items: {
+          include: {
+            photo: {
+              select: { id: true, originalFilename: true, storageKeyThumbnail: true }
+            }
           }
         }
       }
-    },
-    take: 100
-  });
+    })
+  ]);
 
-  res.json({ orders });
+  res.json({
+    orders,
+    pagination: {
+      totalCount,
+      page: parseInt(String(page), 10) || 1,
+      limit: take,
+      totalPages: Math.ceil(totalCount / take)
+    }
+  });
 });
 
-// Admin: Refund order and revoke access
+// Admin: Email logs for orders
+router.get('/orders/email-logs', async (req: AuthenticatedRequest, res: Response) => {
+  const logs = await prisma.emailLog.findMany({
+    take: 50,
+    orderBy: { sentAt: 'desc' }
+  });
+  res.json({ logs });
+});
+
+// Admin: Refund order with pasarela & digital access revocation
 router.post('/orders/:id/refund', async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const { reason } = req.body;
 
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+  try {
+    const result = await stripeService.refundOrder(id, reason);
 
-  const updated = await prisma.order.update({
-    where: { id },
-    data: {
-      status: 'REFUNDED',
-      downloadExpiresAt: new Date(0) // immediately expire token
-    }
-  });
+    await prisma.auditLog.create({
+      data: {
+        adminUserId: req.admin?.adminUserId,
+        action: 'ORDER_REFUNDED',
+        entityType: 'Order',
+        entityId: id,
+        details: `Reembolso procesado para pedido ${result.order.orderNumber} (${(result.order.totalAmountCents / 100).toFixed(2)} €). Motivo: ${reason || 'Administrativo'}`
+      }
+    });
 
-  await prisma.auditLog.create({
-    data: {
-      adminUserId: req.admin?.adminUserId,
-      action: 'ORDER_REFUNDED',
-      entityType: 'Order',
-      entityId: id,
-      details: `Reembolso procesado para pedido ${order.orderNumber} (${(order.totalAmountCents / 100).toFixed(2)} €)`
-    }
-  });
-
-  res.json({ success: true, order: updated });
+    res.json({ success: true, order: result.order, stripeRefundId: result.stripeRefundId, isDevSimulation: result.isDevSimulation });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Error al procesar el reembolso' });
+  }
 });
 
 // Admin: System Settings

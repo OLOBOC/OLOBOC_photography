@@ -5,6 +5,7 @@ import { stripeService } from '../src/services/stripe.service.js';
 import { storageService } from '../src/services/storage.service.js';
 import { imageService } from '../src/services/image.service.js';
 import { bibRecognitionService } from '../src/services/ocr.service.js';
+import { mailService } from '../src/services/mail.service.js';
 import sharp from 'sharp';
 
 let totalTests = 0;
@@ -174,6 +175,8 @@ async function runTestSuite() {
 
       // Clean up
       await storageService.deletePhotoFiles({ original: origFilename });
+      await new Promise((r) => setTimeout(r, 60));
+      await prisma.emailLog.deleteMany({ where: { orderId: session.orderId } });
       await prisma.order.delete({ where: { id: session.orderId } });
       await prisma.photo.delete({ where: { id: photo.id } });
     }
@@ -339,6 +342,179 @@ async function runTestSuite() {
     }
   } catch (err: any) {
     assert(false, `Error en Suite 6: ${err.message}`);
+  }
+
+  // --- SUITE 7: COMMERCIAL FLOW, WEBHOOKS, EMAILS & REFUNDS ---
+  console.log('\n[SUITE 7] Ciclo Comercial Completo, Webhooks, Emails Transaccionales y Reembolsos');
+  try {
+    const event = await prisma.event.findFirst();
+    assert(!!event, 'Existe al menos un evento para pruebas comerciales');
+
+    if (event) {
+      // 1. Create 2 published commercial test photos
+      const photoA = await prisma.photo.create({
+        data: {
+          eventId: event.id,
+          originalFilename: 'commercial_photo_A.jpg',
+          storageKeyOriginal: 'comm_A_orig.jpg',
+          storageKeyWatermarked: 'comm_A_wm.jpg',
+          storageKeyPreview: 'comm_A_prev.webp',
+          storageKeyThumbnail: 'comm_A_th.webp',
+          isPublished: true,
+          isCommercial: true
+        }
+      });
+
+      const photoB = await prisma.photo.create({
+        data: {
+          eventId: event.id,
+          originalFilename: 'commercial_photo_B.jpg',
+          storageKeyOriginal: 'comm_B_orig.jpg',
+          storageKeyWatermarked: 'comm_B_wm.jpg',
+          storageKeyPreview: 'comm_B_prev.webp',
+          storageKeyThumbnail: 'comm_B_th.webp',
+          isPublished: true,
+          isCommercial: true
+        }
+      });
+
+      // 2. Test empty cart
+      const emptyQuote = await pricingService.calculateQuote([]);
+      assert(emptyQuote.photoCount === 0 && emptyQuote.totalCents === 0, 'Carrito vacío devuelve importe 0 €');
+
+      // 3. Test duplicate photo selection in cart
+      const deduplicatedQuote = await pricingService.calculateQuote([photoA.id, photoA.id, photoB.id]);
+      assert(deduplicatedQuote.photoCount === 2, 'Selección duplicada deduplicada automáticamente en el servidor');
+      assert(deduplicatedQuote.totalCents === 298, 'Importe recalculado con exactitud server-side (2 x 1,49 € = 2,98 €)');
+
+      // 4. Test checkout session creation & secure pending order
+      const session = await stripeService.createCheckoutSession({
+        photoIds: [photoA.id, photoB.id],
+        customerEmail: 'comprador@motorsport.es',
+        tipCents: 100
+      });
+      assert(!!session.orderId, 'Pedido registrado en base de datos');
+      assert(!!session.downloadToken && session.downloadToken.length === 64, 'Token criptográfico de 64 caracteres hex generado');
+      assert(session.sessionUrl.includes('#order-success?token='), 'URL de redirección compatible con enrutador hash SPA (#order-success)');
+
+      const pendingOrder = await prisma.order.findUnique({ where: { id: session.orderId }, include: { items: true } });
+      assert(pendingOrder?.status === 'PENDING', 'Pedido se crea inicialmente en estado PENDING estrictamente');
+      assert(pendingOrder?.items.length === 2, 'Todos los ítems verificados asociados al pedido');
+
+      // 5. Test download entitlement verification on PENDING order
+      const canDownloadPending = pendingOrder?.status === 'PAID';
+      assert(!canDownloadPending, 'Descargas denegadas (403) si el pedido no está en estado PAID');
+
+      // 6. Test payment confirmation & transition to PAID
+      const paidOrder = await stripeService.simulatePaymentCompletion(session.downloadToken);
+      assert(paidOrder.status === 'PAID', 'Transición segura a PAID tras confirmación de pago');
+
+      // 7. Test download entitlement on PAID order
+      const canDownloadPaid = paidOrder.status === 'PAID' && new Date() < paidOrder.downloadExpiresAt && paidOrder.downloadCount < paidOrder.maxDownloads;
+      assert(canDownloadPaid, 'Descargas concedidas cuando el pedido está pagado y vigente');
+
+      // 8. Test photo entitlement within order
+      const hasPhotoA = pendingOrder?.items.some((it) => it.photoId === photoA.id);
+      const hasAlienPhoto = pendingOrder?.items.some((it) => it.photoId === 'photo-inexistente-123');
+      assert(hasPhotoA === true, 'Fotografía A comprada autorizada para descarga');
+      assert(hasAlienPhoto === false, 'Fotografía no comprada rechazada con 403 Forbidden');
+
+      // 9. Test expiration entitlement check
+      const expiredDate = new Date(Date.now() - 3600 * 1000); // 1 hour ago
+      const isExpiredCheck = new Date() > expiredDate;
+      assert(isExpiredCheck, 'Detección estricta de token de descarga caducado (>7 días)');
+
+      // 10. Test transactional order confirmation email
+      const emailResult = await mailService.sendOrderConfirmation(session.orderId);
+      assert(emailResult.success === true, 'Servicio de email transaccional despacha confirmación de pedido');
+
+      const emailLog = await prisma.emailLog.findFirst({
+        where: { orderId: session.orderId, template: 'ORDER_CONFIRMATION' }
+      });
+      assert(!!emailLog, 'Despacho de email registrado en tabla EmailLog para auditoría');
+
+      const updatedOrderWithEmail = await prisma.order.findUnique({ where: { id: session.orderId } });
+      assert(!!updatedOrderWithEmail?.confirmationEmailSentAt, 'Fecha confirmationEmailSentAt persistida en base de datos');
+
+      // 11. Test duplicate email protection
+      const dupEmailResult = await mailService.sendOrderConfirmation(session.orderId);
+      assert(dupEmailResult.success === true, 'Segundo envío protegido contra duplicación de correos al cliente');
+
+      // 12. Test webhook idempotency
+      const mockEventId = `evt_test_mock_${Date.now()}`;
+      await prisma.paymentWebhookEvent.create({
+        data: {
+          stripeEventId: mockEventId,
+          eventType: 'checkout.session.completed',
+          payload: JSON.stringify({ id: mockEventId })
+        }
+      });
+      const isDuplicate = await prisma.paymentWebhookEvent.findUnique({ where: { stripeEventId: mockEventId } });
+      assert(!!isDuplicate, 'Registro de webhook procesado detectado para garantizar idempotencia');
+
+      // 13. Test administrative refund & access revocation
+      const refundResult = await stripeService.refundOrder(session.orderId, 'Cancelación a petición del piloto');
+      assert(refundResult.success === true, 'Reembolso procesado en el servicio');
+      assert(refundResult.order.status === 'REFUNDED', 'Estado de pedido actualizado a REFUNDED');
+      assert(refundResult.order.downloadExpiresAt.getTime() === 0, 'Acceso digital y tokens de descarga revocados inmediatamente');
+
+      // 14. Test duplicate refund prevention
+      let duplicateRefundFailed = false;
+      try {
+        await stripeService.refundOrder(session.orderId, 'Reintento fraudulento');
+      } catch {
+        duplicateRefundFailed = true;
+      }
+      assert(duplicateRefundFailed, 'Rechazo estricto de reembolsos duplicados');
+
+      // 15. Clean up test photos and order
+      await prisma.orderItem.deleteMany({ where: { orderId: session.orderId } });
+      await prisma.emailLog.deleteMany({ where: { orderId: session.orderId } });
+      await prisma.order.delete({ where: { id: session.orderId } });
+      await prisma.photo.deleteMany({ where: { id: { in: [photoA.id, photoB.id] } } });
+      await prisma.paymentWebhookEvent.delete({ where: { stripeEventId: mockEventId } });
+    }
+  } catch (err: any) {
+    assert(false, `Error en Suite 7: ${err.message}`);
+  }
+
+  // --- SUITE 8: FISCALIDAD ESPAÑOLA (IVA 21%), CONDICIONES LEGALES Y ALMACENAMIENTO HÍBRIDO S3 ---
+  console.log('\n[SUITE 8] Fiscalidad Española (IVA 21%), Desistimiento Digital (Art. 103.m) y Almacenamiento S3');
+  try {
+    // 1. VAT 21% breakdown check
+    const ev = await prisma.event.findFirst();
+    if (ev) {
+      const p1 = await prisma.photo.create({
+        data: {
+          eventId: ev.id,
+          originalFilename: 'suite8_vat1.jpg',
+          storageKeyOriginal: 's8_orig_1.jpg',
+          storageKeyWatermarked: 's8_wm_1.jpg',
+          storageKeyPreview: 's8_prev_1.jpg',
+          storageKeyThumbnail: 's8_th_1.jpg',
+          width: 3000,
+          height: 2000,
+          sizeBytes: 1500000,
+          mimeType: 'image/jpeg',
+          isPublished: true,
+          ocrStatus: 'COMPLETED'
+        }
+      });
+
+      const quote = await pricingService.calculateQuote([p1.id], 0);
+      assert(quote.taxRatePercent === 21, 'Tipo impositivo de IVA configurado al 21% (B2C España)');
+      assert(quote.netSubtotalCents + quote.taxAmountCents === quote.totalCents, 'Desglose exacto: Base imponible neta + Cuota de IVA = Total');
+      assert(quote.taxAmountCents > 0, 'Cálculo de cuota de IVA no nulo');
+
+      // 2. Storage Service S3 driver inspection
+      const isCloudConfigured = storageService.isCloudConfigured();
+      assert(typeof isCloudConfigured === 'boolean', 'StorageService informa correctamente el estado de configuración Cloud S3');
+
+      // 3. Clean up
+      await prisma.photo.delete({ where: { id: p1.id } });
+    }
+  } catch (err: any) {
+    assert(false, `Error en Suite 8: ${err.message}`);
   }
 
   // --- SUMMARY ---

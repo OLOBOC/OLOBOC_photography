@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../db/prisma.js';
 import { contactLimiter } from '../middleware/rate-limit.middleware.js';
+import { mailService } from '../services/mail.service.js';
 
 const router = Router();
 
@@ -61,6 +62,16 @@ router.post('/', contactLimiter, async (req: Request, res: Response) => {
         console.log(`[Takedown Request] Created formal image rights review request for photo ${photoId}`);
       }
     }
+
+    // 3. Dispatch internal email notification
+    mailService
+      .sendContactNotification({
+        name: n.trim(),
+        email: e.trim().toLowerCase(),
+        motive: r,
+        message: m.trim()
+      })
+      .catch((err) => console.error('[Contact Mail Error]', err));
 
     res.json({
       success: true,

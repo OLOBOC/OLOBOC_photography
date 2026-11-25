@@ -57,6 +57,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             Legal y Privacidad
           </span>
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }} className="font-mono">
+            <a href="#condiciones-compra" onClick={(e) => { e.preventDefault(); onNavigate('condiciones-compra'); }}>
+              Condiciones de compra
+            </a>
             <a href="#aviso-legal" onClick={(e) => { e.preventDefault(); onNavigate('aviso-legal'); }}>
               Aviso legal
             </a>

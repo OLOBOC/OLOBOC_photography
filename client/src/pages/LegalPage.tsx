@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface LegalPageProps {
-  page: 'aviso-legal' | 'privacidad' | 'cookies' | 'licencia-imagen';
+  page: 'aviso-legal' | 'privacidad' | 'cookies' | 'licencia-imagen' | 'condiciones-compra';
   onNavigate: (route: string) => void;
 }
 
@@ -213,6 +213,61 @@ export const LegalPage: React.FC<LegalPageProps> = ({ page, onNavigate }) => {
                 SOLICITAR REVISIÓN O RETIRADA →
               </button>
             </div>
+          </>
+        );
+
+      case 'condiciones-compra':
+        return (
+          <>
+            <h1 className="font-display" style={{ fontSize: 'clamp(48px, 8vw, 96px)', marginBottom: '24px' }}>
+              Condiciones de compra
+            </h1>
+            <p className="font-mono" style={{ color: 'var(--mut)', marginBottom: '28px' }}>
+              Regulación de venta digital y contratación conforme al TRLGDCU (RDL 1/2007) y Ley 34/2002 (LSSI-CE).
+            </p>
+
+            <h3 className="font-display" style={{ fontSize: '28px', marginTop: '24px', marginBottom: '8px' }}>
+              1. Naturaleza del servicio y producto digital
+            </h3>
+            <p style={{ lineHeight: 1.6, marginBottom: '16px' }}>
+              OLOBOC_ comercializa exclusivamente <strong>archivos digitales de fotografía deportiva en alta resolución</strong> (formato JPEG/RAW procesado, sin marca de agua). No se realiza envío de copias físicas o soportes materiales.
+            </p>
+
+            <h3 className="font-display" style={{ fontSize: '28px', marginTop: '24px', marginBottom: '8px' }}>
+              2. Precios e impuestos aplicables
+            </h3>
+            <p style={{ lineHeight: 1.6, marginBottom: '16px' }}>
+              Todos los precios mostrados en la plataforma se expresan en Euros (€) e <strong>incluyen el Impuesto sobre el Valor Añadido (IVA general del 21% aplicable en España)</strong>. El usuario puede descargar una factura simplificada o justificante desglosado inmediatamente tras la confirmación de su pago.
+            </p>
+
+            <h3 className="font-display" style={{ fontSize: '28px', marginTop: '24px', marginBottom: '8px' }}>
+              3. Excepción legal al derecho de desistimiento
+            </h3>
+            <div style={{ background: 'rgba(232, 67, 31, 0.08)', border: '1px solid var(--ac)', padding: '16px', marginBottom: '16px' }}>
+              <p style={{ lineHeight: 1.6, margin: 0, fontWeight: 500 }}>
+                De conformidad con el <strong>artículo 103, letra m) del Real Decreto Legislativo 1/2007 (TRLGDCU)</strong>, el derecho de desistimiento de 14 días no es aplicable al suministro de contenido digital que no se preste en soporte material cuando la ejecución ha comenzado con el previo consentimiento expreso del consumidor y usuario con el conocimiento por su parte de que en consecuencia pierde su derecho de desistimiento.
+              </p>
+            </div>
+            <p style={{ lineHeight: 1.6, marginBottom: '16px' }}>
+              Dado que la entrega de los enlaces de descarga directa sin marcas de agua se produce de forma automática e inmediata al validar el pago bancario, el cliente acepta y consiente expresamente dicha pérdida de desistimiento antes de finalizar su compra.
+            </p>
+
+            <h3 className="font-display" style={{ fontSize: '28px', marginTop: '24px', marginBottom: '8px' }}>
+              4. Plazo y límites de descarga
+            </h3>
+            <p style={{ lineHeight: 1.6, marginBottom: '16px' }}>
+              Cada pedido garantiza un acceso de descarga mediante enlace securizado con token criptográfico válido durante un plazo mínimo de <strong>7 días naturales</strong> a partir de la confirmación de la compra, con un límite de hasta 5 descargas por archivo. Transcurrido dicho plazo, el comprador puede solicitar la reemisión de enlaces contactando con soporte con su comprobante de compra.
+            </p>
+
+            <h3 className="font-display" style={{ fontSize: '28px', marginTop: '24px', marginBottom: '8px' }}>
+              5. Resolución de litigios en línea
+            </h3>
+            <p style={{ lineHeight: 1.6, marginBottom: '16px' }}>
+              Conforme al Art. 14.1 del Reglamento (UE) 524/2013, la Comisión Europea facilita una plataforma de resolución de litigios en línea accesible en el siguiente enlace:{' '}
+              <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                https://ec.europa.eu/consumers/odr
+              </a>.
+            </p>
           </>
         );
     }

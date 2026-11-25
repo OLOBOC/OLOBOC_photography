@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { pricingService } from './pricing.service.js';
+import { mailService } from './mail.service.js';
 
 export class StripeService {
   private stripe: Stripe | null = null;
@@ -77,7 +78,7 @@ export class StripeService {
         orderNumber: order.orderNumber,
         downloadToken: order.downloadToken,
         isDevSimulation: true,
-        sessionUrl: `${config.clientUrl}/order-success?token=${downloadToken}&simulated=true`
+        sessionUrl: `${config.clientUrl}/#order-success?token=${downloadToken}&simulated=true`
       };
     }
 
@@ -122,8 +123,8 @@ export class StripeService {
       },
       line_items: lineItems,
       mode: 'payment',
-      success_url: `${config.clientUrl}/order-success?token=${downloadToken}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${config.clientUrl}/cart?cancelled=true`
+      success_url: `${config.clientUrl}/#order-success?token=${downloadToken}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${config.clientUrl}/#home?cancelled=true`
     });
 
     await prisma.order.update({
@@ -180,6 +181,31 @@ export class StripeService {
             }
           });
           console.log(`[Stripe Webhook] Order ${order.orderNumber} successfully marked as PAID.`);
+
+          // Asynchronously dispatch transactional confirmation email
+          mailService.sendOrderConfirmation(orderId).catch((err) => {
+            console.error('[Stripe Webhook] Failed to dispatch order confirmation email:', err);
+          });
+        }
+      }
+    } else if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : null;
+      if (paymentIntentId) {
+        const order = await prisma.order.findFirst({ where: { stripePaymentIntentId: paymentIntentId } });
+        if (order && order.status !== 'REFUNDED') {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              status: 'REFUNDED',
+              refundedAt: new Date(),
+              downloadExpiresAt: new Date(0)
+            }
+          });
+          console.log(`[Stripe Webhook] Order ${order.orderNumber} marked as REFUNDED.`);
+          mailService.sendRefundNotice(order.id, 'Reembolso confirmado por pasarela').catch((err) => {
+            console.error('[Stripe Webhook] Failed to dispatch refund notice email:', err);
+          });
         }
       }
     }
@@ -209,10 +235,66 @@ export class StripeService {
         data: { status: 'PAID' }
       });
       console.log(`[Dev Simulation] Order ${order.orderNumber} marked as PAID via dev confirmation.`);
+
+      // Asynchronously dispatch transactional confirmation email
+      mailService.sendOrderConfirmation(order.id).catch((err) => {
+        console.error('[Dev Simulation] Failed to dispatch order confirmation email:', err);
+      });
+
       return updated;
     }
 
     return order;
+  }
+
+  /**
+   * Processes an administrative refund with Stripe API integration & access revocation
+   */
+  async refundOrder(orderId: string, reason?: string) {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new Error('Pedido no encontrado');
+    if (order.status === 'REFUNDED') throw new Error('Este pedido ya ha sido reembolsado previamente');
+    if (order.status !== 'PAID') throw new Error('Solo se pueden reembolsar pedidos pagados');
+
+    let stripeRefundId: string | null = null;
+    if (this.stripe && order.stripePaymentIntentId) {
+      try {
+        const refund = await this.stripe.refunds.create({
+          payment_intent: order.stripePaymentIntentId,
+          reason: 'requested_by_customer'
+        });
+        stripeRefundId = refund.id;
+        console.log(`[Stripe] Created real refund ${refund.id} for order ${order.orderNumber}`);
+      } catch (err: any) {
+        console.error(`[Stripe] Error creating real refund for order ${order.orderNumber}:`, err);
+        throw new Error(`Error en pasarela Stripe al reembolsar: ${err.message}`);
+      }
+    } else {
+      console.log(`[Stripe DEV / SIMULATION] Simulated refund for order ${order.orderNumber}`);
+    }
+
+    // Atomically update DB state and revoke downloads immediately
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'REFUNDED',
+        refundedAt: new Date(),
+        refundReason: reason || 'Reembolso administrativo',
+        downloadExpiresAt: new Date(0)
+      }
+    });
+
+    // Dispatch transactional refund email
+    mailService.sendRefundNotice(order.id, reason).catch((err) => {
+      console.error('[Refund] Failed to dispatch refund notice email:', err);
+    });
+
+    return {
+      success: true,
+      order: updated,
+      stripeRefundId,
+      isDevSimulation: !this.stripe
+    };
   }
 }
 

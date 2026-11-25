@@ -47,7 +47,7 @@ router.post('/quote', async (req: Request, res: Response, next) => {
 // Public: Create Stripe Checkout Session
 router.post('/create-session', async (req: Request, res: Response, next) => {
   try {
-    const { photoIds, customerEmail, tipCents } = req.body;
+    const { photoIds, customerEmail, tipCents, acceptDigitalTerms } = req.body;
 
     if (!Array.isArray(photoIds) || photoIds.length === 0) {
       return res.status(400).json({ error: 'Debes seleccionar al menos una fotografía' });
@@ -55,6 +55,10 @@ router.post('/create-session', async (req: Request, res: Response, next) => {
 
     if (!customerEmail || !/^\S+@\S+\.\S+$/.test(customerEmail)) {
       return res.status(400).json({ error: 'Email de entrega no válido' });
+    }
+
+    if (acceptDigitalTerms === false) {
+      return res.status(400).json({ error: 'Debes consentir el suministro inmediato de contenido digital conforme al Art. 103.m LGDCU' });
     }
 
     const sessionData = await stripeService.createCheckoutSession({
@@ -240,6 +244,133 @@ router.get('/order/:token/download/:photoId', downloadLimiter, async (req: Reque
   res.setHeader('Content-Type', photo.mimeType || 'image/jpeg');
   res.setHeader('Content-Disposition', `attachment; filename="OLOBOC_${photo.originalFilename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`);
   fs.createReadStream(originalPath).pipe(res);
+});
+
+// Public: Simplified receipt / invoice with Spanish VAT breakdown
+router.get('/order/:token/receipt', async (req: Request, res: Response) => {
+  const { token } = req.params;
+  const order = await prisma.order.findUnique({
+    where: { downloadToken: token },
+    include: {
+      items: {
+        include: {
+          photo: {
+            include: { event: { select: { name: true, date: true } } }
+          }
+        }
+      }
+    }
+  });
+
+  if (!order) return res.status(404).send('Pedido no encontrado');
+
+  const netCents = Math.round(order.totalAmountCents / 1.21);
+  const vatCents = order.totalAmountCents - netCents;
+  const dateFormatted = new Date(order.createdAt).toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Recibo Simplificado ${order.orderNumber} — OLOBOC_</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #fff; color: #111; margin: 40px; }
+    .header { border-bottom: 2px solid #E8431F; padding-bottom: 20px; display: flex; justify-content: space-between; }
+    .logo { font-size: 28px; font-weight: 900; }
+    .badge { color: #E8431F; font-weight: bold; font-family: monospace; font-size: 13px; }
+    .box { border: 1px solid #ddd; padding: 16px; margin: 20px 0; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+    th { background: #f8f8f8; font-size: 11px; text-transform: uppercase; }
+    .totals { margin-top: 20px; text-align: right; font-size: 14px; }
+    .totals tr td { border: none; padding: 4px 10px; }
+    .total-row { font-size: 18px; font-weight: bold; color: #E8431F; }
+    .footer { font-size: 11px; color: #777; margin-top: 40px; border-top: 1px solid #eee; padding-top: 12px; }
+    @media print { body { margin: 0; } .btn-print { display: none; } }
+  </style>
+</head>
+<body>
+  <div style="margin-bottom: 20px;" class="btn-print">
+    <button onclick="window.print()" style="background: #E8431F; color: #fff; border: none; padding: 8px 16px; font-weight: bold; cursor: pointer;">
+      🖨 IMPRIMIR O GUARDAR EN PDF
+    </button>
+  </div>
+  <div class="header">
+    <div>
+      <div class="logo">OLOBOC_</div>
+      <div style="font-size: 12px; color: #555; margin-top: 4px;">Fotografía Deportiva de Competición · Motorsport</div>
+      <div style="font-size: 11px; color: #888;">Tecnología: Nortcode (https://www.nortcode.es)</div>
+    </div>
+    <div style="text-align: right;">
+      <div class="badge">DOCUMENTO JUSTIFICATIVO DE COMPRA</div>
+      <div style="font-size: 14px; font-weight: bold; margin-top: 4px;">Factura Simplificada: SIMP-${order.orderNumber}</div>
+      <div style="font-size: 12px; color: #666;">Fecha: ${dateFormatted}</div>
+    </div>
+  </div>
+
+  <div class="box">
+    <strong>Datos del Cliente:</strong><br>
+    Email: ${order.customerEmail}<br>
+    Referencia del pedido: ${order.orderNumber}<br>
+    Estado de pago: ${order.status === 'PAID' ? 'PAGADO ✓' : order.status}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Concepto</th>
+        <th>Evento</th>
+        <th style="text-align: right;">Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${order.items.map((it) => `
+        <tr>
+          <td>Licencia digital de alta resolución: ${it.photo.originalFilename}</td>
+          <td>${it.photo.event.name}</td>
+          <td style="text-align: right;">${(it.priceCents / 100).toFixed(2)} €</td>
+        </tr>
+      `).join('')}
+      ${order.tipAmountCents > 0 ? `
+        <tr>
+          <td>Aportación voluntaria al proyecto de fotografía de competición</td>
+          <td>-</td>
+          <td style="text-align: right;">${(order.tipAmountCents / 100).toFixed(2)} €</td>
+        </tr>
+      ` : ''}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <table style="width: auto; margin-left: auto;">
+      <tr>
+        <td>Base Imponible:</td>
+        <td style="text-align: right; width: 100px;">${(netCents / 100).toFixed(2)} €</td>
+      </tr>
+      <tr>
+        <td>IVA (21% incluido):</td>
+        <td style="text-align: right;">${(vatCents / 100).toFixed(2)} €</td>
+      </tr>
+      <tr class="total-row">
+        <td>TOTAL:</td>
+        <td style="text-align: right;">${(order.totalAmountCents / 100).toFixed(2)} €</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    <p>Operación de prestación de servicios digitales por vía electrónica efectuada con arreglo al Real Decreto 1619/2012 (Reglamento de Facturación en España). Los precios exhibidos al consumidor final incluyen el Impuesto sobre el Valor Añadido (IVA al 21%).</p>
+    <p>Contacto: contacto@oloboc.com · Plataforma web: https://oloboc.com</p>
+  </div>
+</body>
+</html>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
 });
 
 export default router;
